@@ -12,21 +12,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install build dependencies
+      - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y wget curl git dosfstools e2fsprogs parted
-
-      - name: Install pacman-static
-        run: |
-          # Tải phiên bản pacman-static mới nhất (có thể thay đổi URL nếu cần)
-          wget https://github.com/ordovicia/pacman-static/releases/download/v6.0.2-1/pacman-static-6.0.2-1-x86_64.tar.zst
-          tar -xvf pacman-static-6.0.2-1-x86_64.tar.zst
-          sudo cp -r usr/* /usr/
-          sudo ln -sf /usr/bin/pacman-static /usr/local/bin/pacman
-          # Khởi tạo pacman keyring (cần thiết cho pacstrap)
-          sudo pacman-key --init
-          sudo pacman-key --populate archlinux
+          sudo apt install -y wget curl git dosfstools e2fsprogs parted xz-utils
 
       - name: Create image file and partitions
         run: |
@@ -39,20 +28,21 @@ jobs:
           sudo mkfs.fat -F32 /dev/loop0p1
           sudo mkfs.ext4 -F /dev/loop0p2
 
-      - name: Mount and bootstrap Arch Linux
+      - name: Mount and bootstrap using Arch Docker
         run: |
           sudo mkdir -p /mnt/arch
           sudo mount /dev/loop0p2 /mnt/arch
           sudo mkdir -p /mnt/arch/boot/efi
           sudo mount /dev/loop0p1 /mnt/arch/boot/efi
 
-          # Bootstrap basic system
-          sudo pacstrap -K /mnt/arch base base-devel linux linux-firmware \
-            tmux git openssh networkmanager sudo vim \
-            rust cargo curl wget
-
-          # Generate fstab
-          sudo genfstab -U /mnt/arch | sudo tee -a /mnt/arch/etc/fstab
+          # Sử dụng Docker để chạy pacstrap trong container Arch
+          docker run --rm -v /mnt/arch:/mnt/arch --privileged archlinux:latest /bin/bash -c "
+            pacman-key --init
+            pacman-key --populate archlinux
+            pacman -Sy
+            pacstrap /mnt/arch base base-devel linux linux-firmware tmux git openssh networkmanager sudo vim rust cargo curl wget arch-install-scripts
+            genfstab -U /mnt/arch >> /mnt/arch/etc/fstab
+          "
 
       - name: Copy miner source into image
         run: |
@@ -61,55 +51,38 @@ jobs:
 
       - name: Configure system in chroot
         run: |
-          sudo arch-chroot /mnt/arch /bin/bash << 'EOF'
-          # Thiết lập timezone
-          ln -sf /usr/share/zoneinfo/Asia/Ho_Chi_Minh /etc/localtime
-          hwclock --systohc
-
-          # Locale
-          echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
-          locale-gen
-          echo "LANG=en_US.UTF-8" > /etc/locale.conf
-
-          # Hostname
-          echo "arch-duco" > /etc/hostname
-
-          # Network
-          systemctl enable NetworkManager
-
-          # Đặt mật khẩu root
-          echo "root:duco" | chpasswd
-
-          # Tạo user miner (không bắt buộc, nhưng tiện)
-          useradd -m -G wheel -s /bin/bash miner
-          echo "miner:miner" | chpasswd
-          echo "%wheel ALL=(ALL) ALL" >> /etc/sudoers
-
-          # Build Rust miner
-          cd /root/rust-miner
-          cargo build --release
-
-          # Cấu hình tmux auto attach
-          cat << 'TMUX_EOF' >> /etc/bash.bashrc
-          if command -v tmux &> /dev/null && [ -z "\$TMUX" ]; then
-              if ! tmux has-session -t mining 2>/dev/null; then
-                  tmux new-session -d -s mining -n miner 'cd /root/rust-miner && ./target/release/duco_rust_miner'
-                  tmux new-window -t mining -n shell
-                  tmux select-window -t mining:shell
-              fi
-              tmux attach -t mining
-          fi
-          TMUX_EOF
-
-          # Cài GRUB (UEFI)
-          pacman -S --noconfirm grub efibootmgr
-          grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
-          grub-mkconfig -o /boot/grub/grub.cfg
-
-          # Dọn dẹp
-          pacman -Scc --noconfirm
-          rm -rf /var/cache/pacman/pkg/*
-          EOF
+          docker run --rm -v /mnt/arch:/mnt/arch --privileged archlinux:latest /bin/bash -c "
+            arch-chroot /mnt/arch /bin/bash << 'EOF'
+            ln -sf /usr/share/zoneinfo/Asia/Ho_Chi_Minh /etc/localtime
+            hwclock --systohc
+            echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen
+            locale-gen
+            echo 'LANG=en_US.UTF-8' > /etc/locale.conf
+            echo 'arch-duco' > /etc/hostname
+            systemctl enable NetworkManager
+            echo 'root:duco' | chpasswd
+            useradd -m -G wheel -s /bin/bash miner
+            echo 'miner:miner' | chpasswd
+            echo '%wheel ALL=(ALL) ALL' >> /etc/sudoers
+            cd /root/rust-miner
+            cargo build --release
+            cat << 'TMUX_EOF' >> /etc/bash.bashrc
+            if command -v tmux &> /dev/null && [ -z \"\$TMUX\" ]; then
+                if ! tmux has-session -t mining 2>/dev/null; then
+                    tmux new-session -d -s mining -n miner 'cd /root/rust-miner && ./target/release/duco_rust_miner'
+                    tmux new-window -t mining -n shell
+                    tmux select-window -t mining:shell
+                fi
+                tmux attach -t mining
+            fi
+            TMUX_EOF
+            pacman -S --noconfirm grub efibootmgr
+            grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
+            grub-mkconfig -o /boot/grub/grub.cfg
+            pacman -Scc --noconfirm
+            rm -rf /var/cache/pacman/pkg/*
+            EOF
+          "
 
       - name: Cleanup and compress image
         run: |
