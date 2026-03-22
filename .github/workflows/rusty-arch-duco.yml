@@ -12,7 +12,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install host dependencies
         run: |
           sudo apt update
           sudo apt install -y wget curl git dosfstools e2fsprogs parted xz-utils
@@ -35,12 +35,14 @@ jobs:
           sudo mkdir -p /mnt/arch/boot/efi
           sudo mount /dev/loop0p1 /mnt/arch/boot/efi
 
-          # Sử dụng Docker để chạy pacstrap trong container Arch
+          # Chạy container Arch để thực hiện pacstrap
           docker run --rm -v /mnt/arch:/mnt/arch --privileged archlinux:latest /bin/bash -c "
             pacman-key --init
             pacman-key --populate archlinux
             pacman -Sy
-            pacstrap /mnt/arch base base-devel linux linux-firmware tmux git openssh networkmanager sudo vim rust cargo curl wget arch-install-scripts
+            # Cài arch-install-scripts để có pacstrap và genfstab
+            pacman -S --noconfirm arch-install-scripts
+            pacstrap /mnt/arch base base-devel linux linux-firmware tmux git openssh networkmanager sudo vim rust cargo curl wget
             genfstab -U /mnt/arch >> /mnt/arch/etc/fstab
           "
 
