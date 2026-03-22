@@ -1,0 +1,128 @@
+name: Build Arch Linux with DuinoCoin Miner
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y wget curl git arch-install-scripts dosfstools e2fsprogs \
+                              parted qemu-user-static binfmt-support systemd-container
+
+      - name: Create image file and partitions
+        run: |
+          # Tạo file image 4GB
+          dd if=/dev/zero of=arch-duco.img bs=1M count=4096
+          # Partition table GPT
+          parted arch-duco.img mklabel gpt
+          # Partition EFI (200MB)
+          parted arch-duco.img mkpart primary fat32 1MiB 201MiB
+          parted arch-duco.img set 1 esp on
+          # Partition root (phần còn lại)
+          parted arch-duco.img mkpart primary ext4 201MiB 100%
+          # Setup loop devices
+          sudo losetup -P /dev/loop0 arch-duco.img
+          # Format
+          sudo mkfs.fat -F32 /dev/loop0p1
+          sudo mkfs.ext4 -F /dev/loop0p2
+
+      - name: Mount and bootstrap Arch Linux
+        run: |
+          sudo mkdir -p /mnt/arch
+          sudo mount /dev/loop0p2 /mnt/arch
+          sudo mkdir -p /mnt/arch/boot/efi
+          sudo mount /dev/loop0p1 /mnt/arch/boot/efi
+
+          # Bootstrap basic system
+          sudo pacstrap -K /mnt/arch base base-devel linux linux-firmware \
+            tmux git openssh networkmanager sudo vim \
+            rust cargo curl wget
+
+          # Generate fstab
+          sudo genfstab -U /mnt/arch >> /mnt/arch/etc/fstab
+
+      - name: Copy miner source into image
+        run: |
+          sudo mkdir -p /mnt/arch/root/rust-miner
+          sudo cp -r miner/* /mnt/arch/root/rust-miner/
+
+      - name: Configure system in chroot
+        run: |
+          cat << 'EOF' | sudo arch-chroot /mnt/arch /bin/bash
+          # Thiết lập timezone
+          ln -sf /usr/share/zoneinfo/Asia/Ho_Chi_Minh /etc/localtime
+          hwclock --systohc
+
+          # Locale
+          echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+          locale-gen
+          echo "LANG=en_US.UTF-8" > /etc/locale.conf
+
+          # Hostname
+          echo "arch-duco" > /etc/hostname
+
+          # Network
+          systemctl enable NetworkManager
+
+          # Đặt mật khẩu root (mặc định: duco)
+          echo "root:duco" | chpasswd
+
+          # Tạo user miner (không bắt buộc, nhưng có thể)
+          useradd -m -G wheel -s /bin/bash miner
+          echo "miner:miner" | chpasswd
+          echo "%wheel ALL=(ALL) ALL" >> /etc/sudoers
+
+          # Build Rust miner
+          cd /root/rust-miner
+          # Cập nhật config.yml với thông tin mặc định (có thể thay bằng biến môi trường nếu muốn)
+          # Không thay đổi file config, để người dùng tự sửa sau
+          cargo build --release
+
+          # Cấu hình tmux auto attach
+          cat << 'TMUX_EOF' >> /etc/bash.bashrc
+          if command -v tmux &> /dev/null && [ -z "\$TMUX" ]; then
+              if ! tmux has-session -t mining 2>/dev/null; then
+                  tmux new-session -d -s mining -n miner 'cd /root/rust-miner && ./target/release/duco_rust_miner'
+                  tmux new-window -t mining -n shell
+                  tmux select-window -t mining:shell
+              fi
+              tmux attach -t mining
+          fi
+          TMUX_EOF
+
+          # Cài GRUB (UEFI)
+          pacman -S --noconfirm grub efibootmgr
+          grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
+          grub-mkconfig -o /boot/grub/grub.cfg
+
+          # Cleanup
+          pacman -Scc --noconfirm
+          rm -rf /var/cache/pacman/pkg/*
+          EOF
+
+      - name: Cleanup and compress image
+        run: |
+          sudo umount /mnt/arch/boot/efi
+          sudo umount /mnt/arch
+          sudo losetup -d /dev/loop0
+          # Nén image
+          xz -z -9 -c arch-duco.img > arch-duco.img.xz
+          # Tính checksum
+          sha256sum arch-duco.img.xz > arch-duco.img.xz.sha256
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arch-duco-image
+          path: |
+            arch-duco.img.xz
+            arch-duco.img.xz.sha256
