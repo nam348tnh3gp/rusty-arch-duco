@@ -162,17 +162,6 @@ You can adjust:
 
 ---
 
-## ⚠️ Notes
-
-* Mining will:
-
-  * 🔥 Increase CPU temperature
-  * ⚡ Consume system resources
-* Default passwords are **not secure → change immediately**
-* Not recommended for production systems
-
----
-
 ## 🧪 TODO
 
 * [ ] Auto-config miner (username)
