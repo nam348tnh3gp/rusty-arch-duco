@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Installation Guide | Rusty Arch Duco</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <nav class="navbar">...</nav>
+
+    <main class="container" style="max-width: 800px; margin: 40px auto; padding: 20px;">
+        <h1>📖 Installation Guide</h1>
+        
+        <h2>Step 1: Download the Image</h2>
+        <p>Visit the GitHub Actions page to get the latest build:</p>
+        <code>https://github.com/nam348tnh3gp/rusty-arch-duco/actions</code>
+        
+        <h2>Step 2: Extract the Image</h2>
+        <pre>xz -d arch-duco.img.xz</pre>
+        
+        <h2>Step 3: Flash to USB Drive</h2>
+        <p>⚠️ WARNING: This will erase all data on the target drive!</p>
+        <pre>sudo dd if=arch-duco.img of=/dev/sdX bs=4M status=progress sync</pre>
+        
+        <h2>Step 4: Boot from USB</h2>
+        <ul>
+            <li>Insert the USB drive</li>
+            <li>Restart your computer</li>
+            <li>Enter boot menu (F12, ESC, or DEL)</li>
+            <li>Select USB drive to boot</li>
+        </ul>
+        
+        <h2>Step 5: Login and Mine!</h2>
+        <p>Default credentials:</p>
+        <ul>
+            <li>Username: <code>miner</code></li>
+            <li>Password: <code>miner</code></li>
+        </ul>
+    </main>
+
+    <footer class="footer">...</footer>
+</body>
+</html>
