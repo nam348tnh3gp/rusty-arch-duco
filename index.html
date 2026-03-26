@@ -1,4 +1,19 @@
-<!DOCTYPE html>
+from flask import Flask, send_from_directory, render_template_string
+import os
+
+app = Flask(__name__)
+
+# Đường dẫn thư mục chứa file tĩnh (CSS, JS, favicon)
+STATIC_DIR = os.path.join(os.path.dirname(__file__), 'static')
+# Đường dẫn thư mục gốc chứa ads.txt và .well-known
+ROOT_DIR = os.path.dirname(__file__)
+
+# Đảm bảo thư mục static tồn tại
+os.makedirs(STATIC_DIR, exist_ok=True)
+os.makedirs(os.path.join(ROOT_DIR, '.well-known'), exist_ok=True)
+
+# === NỘI DUNG HTML ===
+HTML_TEMPLATE = '''<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -6,19 +21,19 @@
     <meta name="description" content="Rusty Arch Duco - Custom Arch Linux image with built-in Duino-Coin miner. Download and start mining DUCO in minutes!">
     <meta name="keywords" content="Arch Linux, Duino-Coin, DUCO, mining, Rust, cryptocurrency">
     <title>Rusty Arch Duco | Arch Linux + DUCO Miner</title>
-    <link rel="stylesheet" href="css/style.css">
-    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
 </head>
 <body>
     <nav class="navbar">
         <div class="container">
             <div class="nav-brand">
-                <a href="/rusty-arch-duco/">🐧 Rusty Arch Duco</a>
+                <a href="/">🐧 Rusty Arch Duco</a>
             </div>
             <div class="nav-links">
-                <a href="/rusty-arch-duco/">Home</a>
-                <a href="/rusty-arch-duco/docs/install.html">Install</a>
-                <a href="/rusty-arch-duco/blog/">Blog</a>
+                <a href="/">Home</a>
+                <a href="/docs/install.html">Install</a>
+                <a href="/blog/">Blog</a>
                 <a href="https://duco-faucet-wgha.onrender.com" target="_blank">Faucet</a>
                 <a href="https://github.com/nam348tnh3gp/rusty-arch-duco" target="_blank">GitHub</a>
             </div>
@@ -89,7 +104,7 @@
                         <span>📥 Download Image (1.85GB)</span>
                         <small>from GitHub Actions Artifacts →</small>
                     </a>
-                    <a href="/rusty-arch-duco/docs/install.html" class="btn btn-outline">Install Guide</a>
+                    <a href="/docs/install.html" class="btn btn-outline">Install Guide</a>
                 </div>
                 <p class="download-note">💡 <strong>Note:</strong> Click the link above, then scroll down to the "Artifacts" section and download <code>arch-duco-img</code>.</p>
             </div>
@@ -142,9 +157,9 @@
                 <div class="footer-section">
                     <h4>Links</h4>
                     <ul>
-                        <li><a href="/rusty-arch-duco/">Home</a></li>
-                        <li><a href="/rusty-arch-duco/docs/install.html">Install Guide</a></li>
-                        <li><a href="/rusty-arch-duco/blog/">Blog</a></li>
+                        <li><a href="/">Home</a></li>
+                        <li><a href="/docs/install.html">Install Guide</a></li>
+                        <li><a href="/blog/">Blog</a></li>
                         <li><a href="https://duco-faucet-wgha.onrender.com" target="_blank">Faucet</a></li>
                     </ul>
                 </div>
@@ -166,6 +181,47 @@
         </div>
     </footer>
 
-    <script src="js/main.js"></script>
+    <script src="/static/js/main.js"></script>
 </body>
-</html>
+</html>'''
+
+
+# === ROUTES ===
+@app.route('/')
+def index():
+    return render_template_string(HTML_TEMPLATE)
+
+# Phục vụ file tĩnh (CSS, JS, favicon)
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory(STATIC_DIR, filename)
+
+# Phục vụ ads.txt
+@app.route('/ads.txt')
+def serve_ads_txt():
+    ads_path = os.path.join(ROOT_DIR, 'ads.txt')
+    if os.path.exists(ads_path):
+        return send_from_directory(ROOT_DIR, 'ads.txt', mimetype='text/plain')
+    return 'ads.txt not found', 404
+
+# Phục vụ Discord verification
+@app.route('/.well-known/discord')
+def serve_discord_verification():
+    discord_path = os.path.join(ROOT_DIR, '.well-known', 'discord')
+    if os.path.exists(discord_path):
+        with open(discord_path, 'r') as f:
+            content = f.read().strip()
+        return content, 200, {'Content-Type': 'text/plain'}
+    return 'Discord verification file not found', 404
+
+# Phục vụ các file HTML tĩnh (docs, blog)
+@app.route('/<path:filename>')
+def serve_html(filename):
+    file_path = os.path.join(ROOT_DIR, filename)
+    if os.path.exists(file_path) and filename.endswith('.html'):
+        return send_from_directory(ROOT_DIR, filename, mimetype='text/html')
+    return 'File not found', 404
+
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
