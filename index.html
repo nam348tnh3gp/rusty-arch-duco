@@ -58,8 +58,8 @@
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">💾</div>
-                    <h3>Small Size</h3>
-                    <p>Compressed .xz image (~200MB). Fast download and flash.</p>
+                    <h3>Complete System</h3>
+                    <p>Full Arch Linux system with everything pre-configured. Image size: 1.85GB</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">🔧</div>
@@ -81,13 +81,13 @@
             <div class="download-card">
                 <div class="download-info">
                     <p class="version">Latest build: <span id="build-date">March 2026</span></p>
-                    <p class="size">Size: ~200MB (compressed)</p>
-                    <p class="checksum">SHA256: <code id="checksum">5a96a79...</code></p>
+                    <p class="size">Size: <strong>1.85 GB</strong> (compressed .xz)</p>
+                    <p class="checksum">SHA256: <code id="checksum">5a96a79d3e8f2b1c...</code></p>
                 </div>
                 <div class="download-buttons">
-                    <a href="https://github.com/nam348tnh3gp/rusty-arch-duco/actions" class="btn btn-download">
-                        <span>📥 Download Image</span>
-                        <small>from GitHub Actions</small>
+                    <a href="https://github.com/nam348tnh3gp/rusty-arch-duco/actions/workflows/build.yml" class="btn btn-download">
+                        <span>📥 Download Image (1.85GB)</span>
+                        <small>from GitHub Actions Artifacts</small>
                     </a>
                     <a href="/docs/install.html" class="btn btn-outline">Install Guide</a>
                 </div>
@@ -102,17 +102,17 @@
                 <div class="step">
                     <div class="step-number">1</div>
                     <h3>Download Image</h3>
-                    <p>Get the latest .xz image from GitHub Actions artifacts</p>
+                    <p>Get the latest <code>arch-duco.img.xz</code> (1.85GB) from GitHub Actions artifacts</p>
                 </div>
                 <div class="step">
                     <div class="step-number">2</div>
-                    <h3>Flash to USB</h3>
-                    <p>Use dd or balenaEtcher to write to USB drive</p>
+                    <h3>Extract & Flash</h3>
+                    <p><code>xz -d arch-duco.img.xz</code> then <code>dd if=arch-duco.img of=/dev/sdX bs=4M</code></p>
                 </div>
                 <div class="step">
                     <div class="step-number">3</div>
                     <h3>Boot & Mine</h3>
-                    <p>Boot from USB, login with miner/miner, and watch it mine!</p>
+                    <p>Boot from USB, login with <code>miner/miner</code>, and watch it mine!</p>
                 </div>
             </div>
         </div>
