@@ -74,7 +74,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 <div class="feature-card">
                     <div class="feature-icon">💾</div>
                     <h3>Complete System</h3>
-                    <p>Full Arch Linux system with everything pre-configured. Image size: 1.85GB</p>
+                    <p>Full Arch Linux system with everything pre-configured. Download size: <strong>1.85GB (.zip)</strong></p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">🔧</div>
@@ -96,17 +96,17 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             <div class="download-card">
                 <div class="download-info">
                     <p class="version">Latest build: <span id="build-date">Build #23412082693 (March 22, 2026)</span></p>
-                    <p class="size">Size: <strong>1.85 GB</strong> (compressed .xz)</p>
+                    <p class="size">Download size: <strong>1.85 GB</strong> (.zip compressed)</p>
                     <p class="checksum">SHA256: <code id="checksum">6da3682...</code></p>
                 </div>
                 <div class="download-buttons">
                     <a href="https://github.com/nam348tnh3gp/rusty-arch-duco/actions/runs/23412082693" class="btn btn-download" target="_blank">
-                        <span>📥 Download Image (1.85GB)</span>
+                        <span>📥 Download Image (1.85GB .zip)</span>
                         <small>from GitHub Actions Artifacts →</small>
                     </a>
                     <a href="/docs/install.html" class="btn btn-outline">Install Guide</a>
                 </div>
-                <p class="download-note">💡 <strong>Note:</strong> Click the link above, then scroll down to the "Artifacts" section and download <code>arch-duco-img</code>.</p>
+                <p class="download-note">💡 <strong>Note:</strong> Click the link above, then scroll down to the "Artifacts" section and download <code>arch-duco-img.zip</code>. After downloading, <strong>unzip</strong> to get the <code>.img</code> file.</p>
             </div>
         </div>
     </section>
@@ -118,12 +118,12 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 <div class="step">
                     <div class="step-number">1</div>
                     <h3>Download Image</h3>
-                    <p>Get the latest <code>arch-duco.img.xz</code> (1.85GB) from the run's Artifacts section.</p>
+                    <p>Get the latest <code>arch-duco-img.zip</code> (1.85GB) from the run's Artifacts section.</p>
                 </div>
                 <div class="step">
                     <div class="step-number">2</div>
-                    <h3>Extract & Flash</h3>
-                    <p><code>xz -d arch-duco.img.xz</code> then <code>dd if=arch-duco.img of=/dev/sdX bs=4M</code></p>
+                    <h3>Unzip & Flash</h3>
+                    <p><code>unzip arch-duco-img.zip</code> → get <code>arch-duco.img</code> (~4GB)<br>Then <code>dd if=arch-duco.img of=/dev/sdX bs=4M</code></p>
                 </div>
                 <div class="step">
                     <div class="step-number">3</div>
