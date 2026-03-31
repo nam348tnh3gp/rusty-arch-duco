@@ -1,4 +1,4 @@
-name: Build Arch Linux with DuinoCoin Miner
+name: Build Arch Linux with DuinoCoin Miner (with GUI)
 
 on:
   push:
@@ -19,11 +19,11 @@ jobs:
 
       - name: Create image file and partitions
         run: |
-          dd if=/dev/zero of=arch-duco.img bs=1M count=4096
+          dd if=/dev/zero of=arch-duco.img bs=1M count=8192
           parted arch-duco.img mklabel gpt
-          parted arch-duco.img mkpart primary fat32 1MiB 201MiB
+          parted arch-duco.img mkpart primary fat32 1MiB 513MiB
           parted arch-duco.img set 1 esp on
-          parted arch-duco.img mkpart primary ext4 201MiB 100%
+          parted arch-duco.img mkpart primary ext4 513MiB 100%
           sudo losetup -P /dev/loop0 arch-duco.img
           sudo mkfs.fat -F32 /dev/loop0p1
           sudo mkfs.ext4 -F /dev/loop0p2
@@ -40,7 +40,9 @@ jobs:
             pacman-key --populate archlinux
             pacman -Syu --noconfirm
             pacman -S --noconfirm arch-install-scripts
-            pacstrap /mnt/arch base base-devel linux linux-firmware tmux git openssh networkmanager sudo vim rust cargo curl wget
+            pacstrap /mnt/arch base base-devel linux linux-firmware tmux git openssh networkmanager sudo vim rust cargo curl wget \
+              xorg xorg-server xfce4 xfce4-goodies lightdm lightdm-gtk-greeter \
+              firefox ttf-freefont ttf-dejavu ttf-ubuntu-font-family
             genfstab -U /mnt/arch >> /mnt/arch/etc/fstab
           "
 
@@ -55,34 +57,111 @@ jobs:
             pacman -Syu --noconfirm
             pacman -S --noconfirm arch-install-scripts
             /usr/bin/arch-chroot /mnt/arch /bin/bash << 'EOF'
+            # Cấu hình cơ bản
             ln -sf /usr/share/zoneinfo/Asia/Ho_Chi_Minh /etc/localtime
             hwclock --systohc
             echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen
             locale-gen
             echo 'LANG=en_US.UTF-8' > /etc/locale.conf
+            echo 'KEYMAP=us' > /etc/vconsole.conf
             echo 'arch-duco' > /etc/hostname
+            
+            # Enable services
             systemctl enable NetworkManager
+            systemctl enable lightdm
+            
+            # Tạo users (không auto login)
             echo 'root:duco' | chpasswd
             useradd -m -G wheel -s /bin/bash miner
             echo 'miner:miner' | chpasswd
             echo '%wheel ALL=(ALL) ALL' >> /etc/sudoers
+            
+            # Build miner
             cd /root/rust-miner
             cargo build --release
-            cat << 'TMUX_EOF' >> /etc/bash.bashrc
-            if command -v tmux &> /dev/null && [ -z \"\$TMUX\" ]; then
-                if ! tmux has-session -t mining 2>/dev/null; then
-                    tmux new-session -d -s mining -n miner 'cd /root/rust-miner && ./target/release/duco_rust_miner'
-                    tmux new-window -t mining -n shell
-                    tmux select-window -t mining:shell
-                fi
-                tmux attach -t mining
-            fi
-            TMUX_EOF
+            
+            # Tạo desktop shortcut cho miner
+            mkdir -p /home/miner/Desktop
+            cat > /home/miner/Desktop/duco-miner.desktop << 'DESKTOP'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=DuinoCoin Miner
+Comment=Start DuinoCoin Miner
+Exec=xfce4-terminal --title='Duino Miner' --hold -e 'bash -c \"cd /root/rust-miner && ./target/release/duco_rust_miner; exec bash\"'
+Icon=utilities-terminal
+Terminal=false
+Categories=Utility;
+DESKTOP
+            
+            chmod +x /home/miner/Desktop/duco-miner.desktop
+            chown -R miner:miner /home/miner/Desktop
+            
+            # Tạo menu entry cho miner
+            mkdir -p /home/miner/.local/share/applications
+            cp /home/miner/Desktop/duco-miner.desktop /home/miner/.local/share/applications/
+            chown -R miner:miner /home/miner/.local
+            
+            # Cấu hình Xfce để hiển thị desktop icons
+            mkdir -p /home/miner/.config/xfce4/xfconf/xfce-perchannel-xml
+            cat > /home/miner/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml << 'XFCE'
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xfce4-desktop" version="1.0">
+  <property name="desktop-icons" type="empty">
+    <property name="file-icons" type="bool" value="true"/>
+    <property name="show-removable" type="bool" value="true"/>
+    <property name="show-trash" type="bool" value="true"/>
+  </property>
+</channel>
+XFCE
+            
+            chown -R miner:miner /home/miner/.config
+            
+            # Cấu hình lightdm (không auto login)
+            cat > /etc/lightdm/lightdm.conf << 'LIGHTDM'
+[Seat:*]
+greeter-session=lightdm-gtk-greeter
+user-session=xfce
+LIGHTDM
+            
+            # Cấu hình greeter để hiển thị user list
+            cat > /etc/lightdm/lightdm-gtk-greeter.conf << 'GREETER'
+[greeter]
+theme-name=Adwaita
+icon-theme-name=Adwaita
+font-name=Sans 10
+show-indicators=~host;~spacer;~session;~language;~a11y;~power
+user-list=true
+GREETER
+            
+            # Thêm hướng dẫn khi đăng nhập
+            cat > /etc/motd << 'MOTD'
+===========================================
+  Arch Linux with DuinoCoin Miner
+===========================================
+  
+  Users:
+    root : duco
+    miner: miner
+  
+  To start DuinoCoin miner:
+    - Click on Desktop icon "DuinoCoin Miner"
+    - Or run: cd /root/rust-miner && ./target/release/duco_rust_miner
+  
+  GUI: Xfce4 Desktop Environment
+===========================================
+MOTD
+            
+            # Cấu hình GRUB
             pacman -S --noconfirm grub efibootmgr
             grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
             grub-mkconfig -o /boot/grub/grub.cfg
+            
+            # Dọn dẹp
             pacman -Scc --noconfirm
             rm -rf /var/cache/pacman/pkg/*
+            rm -rf /root/.cargo/registry
+            rm -rf /root/.cargo/git
             EOF
           "
 
@@ -97,7 +176,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: arch-duco-image
+          name: arch-duco-image-gui
           path: |
             arch-duco.img.xz
             arch-duco.img.xz.sha256
