@@ -18,8 +18,8 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Rusty Arch Duco - Custom Arch Linux image with built-in Duino-Coin miner. Download and start mining DUCO in minutes!">
-    <meta name="keywords" content="Arch Linux, Duino-Coin, DUCO, mining, Rust, cryptocurrency">
+    <meta name="description" content="Rusty Arch Duco - Custom Arch Linux image with built-in Duino-Coin miner. Choose between GUI or terminal-only version.">
+    <meta name="keywords" content="Arch Linux, Duino-Coin, DUCO, mining, Rust, cryptocurrency, GUI, Xfce">
     <title>Rusty Arch Duco | Arch Linux + DUCO Miner</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
@@ -73,8 +73,8 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">💾</div>
-                    <h3>Complete System</h3>
-                    <p>Full Arch Linux system with everything pre-configured. Download size: <strong>~1.85GB (.zip)</strong></p>
+                    <h3>Two Versions</h3>
+                    <p>Choose between <strong>Terminal-only</strong> (~1.6GB) or <strong>Xfce GUI</strong> (~2.1GB) version.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">🔧</div>
@@ -93,20 +93,77 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
     <section id="download" class="download">
         <div class="container">
             <h2>📦 Download</h2>
-            <div class="download-card">
+            
+            <!-- Terminal Version (No GUI) -->
+            <div class="download-card terminal-version">
+                <div class="version-badge">💻 Terminal Only</div>
+                <h3>Rusty Arch Duco - Terminal Edition</h3>
                 <div class="download-info">
-                    <p class="version">Latest build: <span id="build-date">Build #23412082693 (Updated March 2026)</span></p>
-                    <p class="size">Download size: <strong>1.85 GB</strong> (.zip compressed)</p>
-                    <p class="checksum">SHA256: <code id="checksum">Verified GitHub Artifact</code></p>
+                    <p class="version">Latest build: <span id="build-date-terminal">Build #23796788057 (March 2026)</span></p>
+                    <p class="size">Download size: <strong>~1.6 GB</strong> (.xz compressed)</p>
+                    <p class="description">Lightweight, terminal-only version. Perfect for servers, VPS, or minimal setups.</p>
+                    <ul class="feature-list">
+                        <li>✅ No GUI - pure terminal</li>
+                        <li>✅ Tmux auto-start with miner</li>
+                        <li>✅ SSH enabled by default</li>
+                        <li>✅ Minimal resource usage</li>
+                    </ul>
                 </div>
                 <div class="download-buttons">
-                    <a href="https://github.com/nam348tnh3gp/rusty-arch-duco/actions/runs/23412082693/artifacts/6049197751" class="btn btn-download" target="_blank">
-                        <span>📥 Download Image (1.85GB .zip)</span>
+                    <a href="https://github.com/nam348tnh3gp/rusty-arch-duco/actions/runs/23796788057/artifacts/6199345274" class="btn btn-download" target="_blank">
+                        <span>📥 Download Terminal Edition (1.6GB)</span>
                         <small>Direct Link from GitHub →</small>
                     </a>
-                    <a href="/docs/install.html" class="btn btn-outline">Install Guide</a>
+                    <a href="/docs/install-terminal.html" class="btn btn-outline">Install Guide</a>
                 </div>
-                <p class="download-note">💡 <strong>Note:</strong> Link above sẽ tải trực tiếp file <code>arch-duco-image.zip</code>. Sau khi tải, hãy <strong>giải nén</strong> để lấy file <code>.img</code> bên trong (~4GB) trước khi flash vào USB.</p>
+                <p class="download-note">💡 <strong>Note:</strong> After downloading, extract the <code>.xz</code> file to get <code>arch-duco.img</code> (~4GB). Flash to USB with Rufus or balenaEtcher.</p>
+            </div>
+
+            <!-- GUI Version (Xfce Desktop) -->
+            <div class="download-card gui-version">
+                <div class="version-badge">🖥️ Xfce GUI</div>
+                <h3>Rusty Arch Duco - Xfce Edition</h3>
+                <div class="download-info">
+                    <p class="version">Latest build: <span id="build-date-gui">Build #23796295654 (March 2026)</span></p>
+                    <p class="size">Download size: <strong>~2.1 GB</strong> (.xz compressed)</p>
+                    <p class="description">Full desktop experience with Xfce. Perfect for daily use with miner running in background.</p>
+                    <ul class="feature-list">
+                        <li>✅ Xfce Desktop Environment</li>
+                        <li>✅ Firefox pre-installed</li>
+                        <li>✅ Desktop shortcut for miner</li>
+                        <li>✅ LightDM login manager</li>
+                    </ul>
+                </div>
+                <div class="download-buttons">
+                    <a href="https://github.com/nam348tnh3gp/rusty-arch-duco/actions/runs/23796295654/artifacts/6199469659" class="btn btn-download" target="_blank">
+                        <span>📥 Download Xfce Edition (2.1GB)</span>
+                        <small>Direct Link from GitHub →</small>
+                    </a>
+                    <a href="/docs/install-gui.html" class="btn btn-outline">Install Guide</a>
+                </div>
+                <p class="download-note">💡 <strong>Note:</strong> After downloading, extract the <code>.xz</code> file to get <code>arch-duco.img</code> (~8GB). Flash to USB (minimum 16GB USB recommended).</p>
+            </div>
+
+            <div class="comparison-table">
+                <h3>📊 Version Comparison</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th>Terminal Edition</th>
+                            <th>Xfce GUI Edition</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Desktop Environment</td><td>❌ None</td><td>✅ Xfce</td></tr>
+                        <tr><td>Disk Space (extracted)</td><td>4GB</td><td>8GB</td></tr>
+                        <tr><td>Download Size</td><td>~1.6GB</td><td>~2.1GB</td></tr>
+                        <tr><td>USB Required</td><td>8GB+</td><td>16GB+</td></tr>
+                        <tr><td>Browser Included</td><td>❌ No</td><td>✅ Firefox</td></tr>
+                        <tr><td>RAM Usage (idle)</td><td>~150MB</td><td>~600MB</td></tr>
+                        <tr><td>Best For</td><td>Servers, VPS, Mining Rigs</td><td>Desktop, Daily Use</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </section>
@@ -118,17 +175,17 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 <div class="step">
                     <div class="step-number">1</div>
                     <h3>Download Image</h3>
-                    <p>Tải file <code>arch-duco-image.zip</code> từ link phía trên.</p>
+                    <p>Choose your preferred version above and download the file.</p>
                 </div>
                 <div class="step">
                     <div class="step-number">2</div>
-                    <h3>Unzip & Flash</h3>
-                    <p>Giải nén file ZIP để có <code>arch-duco.img</code>. Dùng <strong>Rufus</strong> hoặc <strong>balenaEtcher</strong> để ghi vào USB.</p>
+                    <h3>Extract & Flash</h3>
+                    <p>Extract the <code>.xz</code> file to get <code>.img</code>. Use <strong>Rufus</strong> or <strong>balenaEtcher</strong> to flash to USB.</p>
                 </div>
                 <div class="step">
                     <div class="step-number">3</div>
                     <h3>Boot & Mine</h3>
-                    <p>Khởi động máy từ USB, đăng nhập <code>miner/miner</code>. Miner sẽ tự chạy trong tmux!</p>
+                    <p>Boot from USB, login with <code>miner/miner</code>. Miner starts automatically!</p>
                 </div>
             </div>
         </div>
@@ -211,4 +268,4 @@ def serve_html(filename):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)
