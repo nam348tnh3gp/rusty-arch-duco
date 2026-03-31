@@ -1,4 +1,4 @@
-name: Build Arch Linux with DuinoCoin Miner (with GUI)
+name: Build Arch Linux with DuinoCoin Miner (Xfce4 GUI)
 
 on:
   push:
@@ -53,92 +53,108 @@ jobs:
 
       - name: Configure system in chroot
         run: |
-          # Basic configuration commands
-          sudo arch-chroot /mnt/arch /bin/bash -c "ln -sf /usr/share/zoneinfo/Asia/Ho_Chi_Minh /etc/localtime"
-          sudo arch-chroot /mnt/arch /bin/bash -c "hwclock --systohc"
-          sudo arch-chroot /mnt/arch /bin/bash -c "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen"
-          sudo arch-chroot /mnt/arch /bin/bash -c "locale-gen"
-          sudo arch-chroot /mnt/arch /bin/bash -c "echo 'LANG=en_US.UTF-8' > /etc/locale.conf"
-          sudo arch-chroot /mnt/arch /bin/bash -c "echo 'KEYMAP=us' > /etc/vconsole.conf"
-          sudo arch-chroot /mnt/arch /bin/bash -c "echo 'arch-duco' > /etc/hostname"
-          
-          # Enable services
-          sudo arch-chroot /mnt/arch /bin/bash -c "systemctl enable NetworkManager"
-          sudo arch-chroot /mnt/arch /bin/bash -c "systemctl enable lightdm"
-          
-          # Create users
-          sudo arch-chroot /mnt/arch /bin/bash -c "echo 'root:duco' | chpasswd"
-          sudo arch-chroot /mnt/arch /bin/bash -c "useradd -m -G wheel -s /bin/bash miner"
-          sudo arch-chroot /mnt/arch /bin/bash -c "echo 'miner:miner' | chpasswd"
-          sudo arch-chroot /mnt/arch /bin/bash -c "echo '%wheel ALL=(ALL) ALL' >> /etc/sudoers"
-          
-          # Build miner
-          sudo arch-chroot /mnt/arch /bin/bash -c "cd /root/rust-miner && cargo build --release"
-          
-          # Create start-miner script
-          sudo arch-chroot /mnt/arch /bin/bash -c "cat > /usr/local/bin/start-miner << 'EOF'
-          #!/bin/bash
-          cd /root/rust-miner
-          ./target/release/duco_rust_miner
-          EOF"
-          sudo arch-chroot /mnt/arch /bin/bash -c "chmod +x /usr/local/bin/start-miner"
-          
-          # Create desktop shortcut
-          sudo arch-chroot /mnt/arch /bin/bash -c "mkdir -p /home/miner/Desktop"
-          sudo arch-chroot /mnt/arch /bin/bash -c "cat > /home/miner/Desktop/duco-miner.desktop << 'EOF'
-          [Desktop Entry]
-          Version=1.0
-          Type=Application
-          Name=DuinoCoin Miner
-          Comment=Start DuinoCoin Miner
-          Exec=xfce4-terminal --title=Duino-Miner --hold -e start-miner
-          Icon=utilities-terminal
-          Terminal=false
-          Categories=Utility;
-          EOF"
-          sudo arch-chroot /mnt/arch /bin/bash -c "chmod +x /home/miner/Desktop/duco-miner.desktop"
-          sudo arch-chroot /mnt/arch /bin/bash -c "chown -R miner:miner /home/miner/Desktop"
-          
-          # Copy to applications menu
-          sudo arch-chroot /mnt/arch /bin/bash -c "mkdir -p /home/miner/.local/share/applications"
-          sudo arch-chroot /mnt/arch /bin/bash -c "cp /home/miner/Desktop/duco-miner.desktop /home/miner/.local/share/applications/"
-          sudo arch-chroot /mnt/arch /bin/bash -c "chown -R miner:miner /home/miner/.local"
-          
-          # Configure lightdm
-          sudo arch-chroot /mnt/arch /bin/bash -c "cat > /etc/lightdm/lightdm.conf << 'EOF'
-          [Seat:*]
-          greeter-session=lightdm-gtk-greeter
-          user-session=xfce
-          EOF"
-          
-          # Create message of the day
-          sudo arch-chroot /mnt/arch /bin/bash -c "cat > /etc/motd << 'EOF'
-          ===========================================
-            Arch Linux with DuinoCoin Miner
-          ===========================================
+          docker run --rm -v /mnt/arch:/mnt/arch --privileged archlinux:latest /bin/bash -c "
+            pacman -Syu --noconfirm
+            pacman -S --noconfirm arch-install-scripts
+            /usr/bin/arch-chroot /mnt/arch /bin/bash << 'EOF'
+            # Cấu hình cơ bản
+            ln -sf /usr/share/zoneinfo/Asia/Ho_Chi_Minh /etc/localtime
+            hwclock --systohc
+            echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen
+            locale-gen
+            echo 'LANG=en_US.UTF-8' > /etc/locale.conf
+            echo 'KEYMAP=us' > /etc/vconsole.conf
+            echo 'arch-duco' > /etc/hostname
             
-            Users:
-              root : duco
-              miner: miner
+            # Enable services
+            systemctl enable NetworkManager
+            systemctl enable lightdm
             
-            To start miner:
-              - Desktop icon: DuinoCoin Miner
-              - Command: start-miner
+            # Tạo users
+            echo 'root:duco' | chpasswd
+            useradd -m -G wheel -s /bin/bash miner
+            echo 'miner:miner' | chpasswd
+            echo '%wheel ALL=(ALL) ALL' >> /etc/sudoers
             
-            GUI: Xfce4
-          ===========================================
-          EOF"
-          
-          # Install and configure GRUB
-          sudo arch-chroot /mnt/arch /bin/bash -c "pacman -S --noconfirm grub efibootmgr"
-          sudo arch-chroot /mnt/arch /bin/bash -c "grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB"
-          sudo arch-chroot /mnt/arch /bin/bash -c "grub-mkconfig -o /boot/grub/grub.cfg"
-          
-          # Cleanup
-          sudo arch-chroot /mnt/arch /bin/bash -c "pacman -Scc --noconfirm"
-          sudo arch-chroot /mnt/arch /bin/bash -c "rm -rf /var/cache/pacman/pkg/*"
-          sudo arch-chroot /mnt/arch /bin/bash -c "rm -rf /root/.cargo/registry"
-          sudo arch-chroot /mnt/arch /bin/bash -c "rm -rf /root/.cargo/git"
+            # Build miner
+            cd /root/rust-miner
+            cargo build --release
+            
+            # Tạo script start-miner
+            cat > /usr/local/bin/start-miner << 'MINER'
+            #!/bin/bash
+            cd /root/rust-miner
+            ./target/release/duco_rust_miner
+            MINER
+            chmod +x /usr/local/bin/start-miner
+            
+            # Tạo desktop shortcut
+            mkdir -p /home/miner/Desktop
+            cat > /home/miner/Desktop/duco-miner.desktop << 'DESKTOP'
+            [Desktop Entry]
+            Version=1.0
+            Type=Application
+            Name=DuinoCoin Miner
+            Comment=Start DuinoCoin Miner
+            Exec=xfce4-terminal --title=Duino-Miner --hold -e start-miner
+            Icon=utilities-terminal
+            Terminal=false
+            Categories=Utility;
+            DESKTOP
+            chmod +x /home/miner/Desktop/duco-miner.desktop
+            chown -R miner:miner /home/miner/Desktop
+            
+            # Copy to applications menu
+            mkdir -p /home/miner/.local/share/applications
+            cp /home/miner/Desktop/duco-miner.desktop /home/miner/.local/share/applications/
+            chown -R miner:miner /home/miner/.local
+            
+            # Cấu hình lightdm (không auto login)
+            cat > /etc/lightdm/lightdm.conf << 'LIGHTDM'
+            [Seat:*]
+            greeter-session=lightdm-gtk-greeter
+            user-session=xfce
+            LIGHTDM
+            
+            # Cấu hình greeter
+            cat > /etc/lightdm/lightdm-gtk-greeter.conf << 'GREETER'
+            [greeter]
+            theme-name=Adwaita
+            icon-theme-name=Adwaita
+            font-name=Sans 10
+            user-list=true
+            GREETER
+            
+            # Message khi đăng nhập
+            cat > /etc/motd << 'MOTD'
+            ===========================================
+              Arch Linux with DuinoCoin Miner
+            ===========================================
+              
+              Users:
+                root : duco
+                miner: miner
+              
+              To start miner:
+                - Desktop icon: DuinoCoin Miner
+                - Command: start-miner
+              
+              GUI: Xfce4
+            ===========================================
+            MOTD
+            
+            # Cấu hình GRUB
+            pacman -S --noconfirm grub efibootmgr
+            grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
+            grub-mkconfig -o /boot/grub/grub.cfg
+            
+            # Dọn dẹp
+            pacman -Scc --noconfirm
+            rm -rf /var/cache/pacman/pkg/*
+            rm -rf /root/.cargo/registry
+            rm -rf /root/.cargo/git
+            EOF
+          "
 
       - name: Cleanup and compress image
         run: |
@@ -155,3 +171,4 @@ jobs:
           path: |
             arch-duco.img.xz
             arch-duco.img.xz.sha256
+          retention-days: 90
