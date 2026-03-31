@@ -70,7 +70,7 @@ jobs:
             systemctl enable NetworkManager
             systemctl enable lightdm
             
-            # Tạo users (không auto login)
+            # Tạo users
             echo 'root:duco' | chpasswd
             useradd -m -G wheel -s /bin/bash miner
             echo 'miner:miner' | chpasswd
@@ -80,7 +80,15 @@ jobs:
             cd /root/rust-miner
             cargo build --release
             
-            # Tạo desktop shortcut cho miner
+            # Tạo script để chạy miner
+            cat > /usr/local/bin/start-miner << 'SCRIPT'
+#!/bin/bash
+cd /root/rust-miner
+./target/release/duco_rust_miner
+SCRIPT
+            chmod +x /usr/local/bin/start-miner
+            
+            # Tạo desktop shortcut
             mkdir -p /home/miner/Desktop
             cat > /home/miner/Desktop/duco-miner.desktop << 'DESKTOP'
 [Desktop Entry]
@@ -88,53 +96,27 @@ Version=1.0
 Type=Application
 Name=DuinoCoin Miner
 Comment=Start DuinoCoin Miner
-Exec=xfce4-terminal --title='Duino Miner' --hold -e 'bash -c "cd /root/rust-miner && ./target/release/duco_rust_miner; exec bash"'
+Exec=xfce4-terminal --title=Duino-Miner --hold -e start-miner
 Icon=utilities-terminal
 Terminal=false
 Categories=Utility;
 DESKTOP
-            
             chmod +x /home/miner/Desktop/duco-miner.desktop
             chown -R miner:miner /home/miner/Desktop
             
-            # Tạo menu entry cho miner
+            # Copy to applications menu
             mkdir -p /home/miner/.local/share/applications
             cp /home/miner/Desktop/duco-miner.desktop /home/miner/.local/share/applications/
             chown -R miner:miner /home/miner/.local
             
-            # Cấu hình Xfce để hiển thị desktop icons
-            mkdir -p /home/miner/.config/xfce4/xfconf/xfce-perchannel-xml
-            cat > /home/miner/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml << 'XFCE'
-<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-<channel name=\"xfce4-desktop\" version=\"1.0\">
-  <property name=\"desktop-icons\" type=\"empty\">
-    <property name=\"file-icons\" type=\"bool\" value=\"true\"/>
-    <property name=\"show-removable\" type=\"bool\" value=\"true\"/>
-    <property name=\"show-trash\" type=\"bool\" value=\"true\"/>
-  </property>
-</channel>
-XFCE
-            
-            chown -R miner:miner /home/miner/.config
-            
-            # Cấu hình lightdm (không auto login)
+            # Cấu hình lightdm
             cat > /etc/lightdm/lightdm.conf << 'LIGHTDM'
 [Seat:*]
 greeter-session=lightdm-gtk-greeter
 user-session=xfce
 LIGHTDM
             
-            # Cấu hình greeter để hiển thị user list
-            cat > /etc/lightdm/lightdm-gtk-greeter.conf << 'GREETER'
-[greeter]
-theme-name=Adwaita
-icon-theme-name=Adwaita
-font-name=Sans 10
-show-indicators=~host;~spacer;~session;~language;~a11y;~power
-user-list=true
-GREETER
-            
-            # Thêm hướng dẫn khi đăng nhập
+            # Message khi đăng nhập
             cat > /etc/motd << 'MOTD'
 ===========================================
   Arch Linux with DuinoCoin Miner
@@ -144,11 +126,11 @@ GREETER
     root : duco
     miner: miner
   
-  To start DuinoCoin miner:
-    - Click on Desktop icon \"DuinoCoin Miner\"
-    - Or run: cd /root/rust-miner && ./target/release/duco_rust_miner
+  To start miner:
+    - Desktop icon: DuinoCoin Miner
+    - Command: start-miner
   
-  GUI: Xfce4 Desktop Environment
+  GUI: Xfce4
 ===========================================
 MOTD
             
