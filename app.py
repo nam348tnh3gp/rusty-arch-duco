@@ -74,7 +74,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 <div class="feature-card">
                     <div class="feature-icon">💾</div>
                     <h3>Complete System</h3>
-                    <p>Full Arch Linux system with everything pre-configured. Download size: <strong>1.85GB (.zip)</strong></p>
+                    <p>Full Arch Linux system with everything pre-configured. Download size: <strong>~1.85GB (.zip)</strong></p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">🔧</div>
@@ -95,18 +95,18 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             <h2>📦 Download</h2>
             <div class="download-card">
                 <div class="download-info">
-                    <p class="version">Latest build: <span id="build-date">Build #23412082693 (March 22, 2026)</span></p>
+                    <p class="version">Latest build: <span id="build-date">Build #23412082693 (Updated March 2026)</span></p>
                     <p class="size">Download size: <strong>1.85 GB</strong> (.zip compressed)</p>
-                    <p class="checksum">SHA256: <code id="checksum">6da3682...</code></p>
+                    <p class="checksum">SHA256: <code id="checksum">Verified GitHub Artifact</code></p>
                 </div>
                 <div class="download-buttons">
-                    <a href="https://github.com/nam348tnh3gp/rusty-arch-duco/actions/runs/23412082693" class="btn btn-download" target="_blank">
+                    <a href="https://github.com/nam348tnh3gp/rusty-arch-duco/actions/runs/23412082693/artifacts/6049197751" class="btn btn-download" target="_blank">
                         <span>📥 Download Image (1.85GB .zip)</span>
-                        <small>from GitHub Actions Artifacts →</small>
+                        <small>Direct Link from GitHub →</small>
                     </a>
                     <a href="/docs/install.html" class="btn btn-outline">Install Guide</a>
                 </div>
-                <p class="download-note">💡 <strong>Note:</strong> Click the link above, then scroll down to the "Artifacts" section and download <code>arch-duco-img.zip</code>. After downloading, <strong>unzip</strong> to get the <code>.img</code> file.</p>
+                <p class="download-note">💡 <strong>Note:</strong> Link above sẽ tải trực tiếp file <code>arch-duco-image.zip</code>. Sau khi tải, hãy <strong>giải nén</strong> để lấy file <code>.img</code> bên trong (~4GB) trước khi flash vào USB.</p>
             </div>
         </div>
     </section>
@@ -118,31 +118,18 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 <div class="step">
                     <div class="step-number">1</div>
                     <h3>Download Image</h3>
-                    <p>Get the latest <code>arch-duco-img.zip</code> (1.85GB) from the run's Artifacts section.</p>
+                    <p>Tải file <code>arch-duco-image.zip</code> từ link phía trên.</p>
                 </div>
                 <div class="step">
                     <div class="step-number">2</div>
                     <h3>Unzip & Flash</h3>
-                    <p><code>unzip arch-duco-img.zip</code> → get <code>arch-duco.img</code> (~4GB)<br>Then <code>dd if=arch-duco.img of=/dev/sdX bs=4M</code></p>
+                    <p>Giải nén file ZIP để có <code>arch-duco.img</code>. Dùng <strong>Rufus</strong> hoặc <strong>balenaEtcher</strong> để ghi vào USB.</p>
                 </div>
                 <div class="step">
                     <div class="step-number">3</div>
                     <h3>Boot & Mine</h3>
-                    <p>Boot from USB, login with <code>miner/miner</code>, and watch it mine!</p>
+                    <p>Khởi động máy từ USB, đăng nhập <code>miner/miner</code>. Miner sẽ tự chạy trong tmux!</p>
                 </div>
-            </div>
-        </div>
-    </section>
-
-    <section class="faucet-redirect">
-        <div class="container">
-            <h2>💰 Free DUCO Faucet</h2>
-            <p class="section-desc">Claim free DUCO every day to support your mining journey!</p>
-            <div class="faucet-card">
-                <a href="https://duco-faucet-wgha.onrender.com" class="btn btn-primary" target="_blank">
-                    🎁 Visit DUCO Faucet →
-                </a>
-                <p class="faucet-info">🎲 Random amount: 1-20 DUCO | 1 claim per 24h | 70% (1-10) | 20% (10-15) | 10% (15-20)</p>
             </div>
         </div>
     </section>
