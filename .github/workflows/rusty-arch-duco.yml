@@ -88,7 +88,7 @@ Version=1.0
 Type=Application
 Name=DuinoCoin Miner
 Comment=Start DuinoCoin Miner
-Exec=xfce4-terminal --title='Duino Miner' --hold -e 'bash -c \"cd /root/rust-miner && ./target/release/duco_rust_miner; exec bash\"'
+Exec=xfce4-terminal --title='Duino Miner' --hold -e 'bash -c "cd /root/rust-miner && ./target/release/duco_rust_miner; exec bash"'
 Icon=utilities-terminal
 Terminal=false
 Categories=Utility;
@@ -105,12 +105,12 @@ DESKTOP
             # Cấu hình Xfce để hiển thị desktop icons
             mkdir -p /home/miner/.config/xfce4/xfconf/xfce-perchannel-xml
             cat > /home/miner/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml << 'XFCE'
-<?xml version="1.0" encoding="UTF-8"?>
-<channel name="xfce4-desktop" version="1.0">
-  <property name="desktop-icons" type="empty">
-    <property name="file-icons" type="bool" value="true"/>
-    <property name="show-removable" type="bool" value="true"/>
-    <property name="show-trash" type="bool" value="true"/>
+<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<channel name=\"xfce4-desktop\" version=\"1.0\">
+  <property name=\"desktop-icons\" type=\"empty\">
+    <property name=\"file-icons\" type=\"bool\" value=\"true\"/>
+    <property name=\"show-removable\" type=\"bool\" value=\"true\"/>
+    <property name=\"show-trash\" type=\"bool\" value=\"true\"/>
   </property>
 </channel>
 XFCE
@@ -145,7 +145,7 @@ GREETER
     miner: miner
   
   To start DuinoCoin miner:
-    - Click on Desktop icon "DuinoCoin Miner"
+    - Click on Desktop icon \"DuinoCoin Miner\"
     - Or run: cd /root/rust-miner && ./target/release/duco_rust_miner
   
   GUI: Xfce4 Desktop Environment
