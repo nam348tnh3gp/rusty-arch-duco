@@ -1,4 +1,4 @@
-name: Build Arch Linux with DuinoCoin Miner (Xfce4 GUI)
+name: Build Arch Linux with DuinoCoin Miner (Xfce4 GUI) - Dual Boot
 
 on:
   push:
@@ -15,23 +15,28 @@ jobs:
       - name: Install host dependencies
         run: |
           sudo apt update
-          sudo apt install -y wget curl git dosfstools e2fsprogs parted xz-utils
+          sudo apt install -y wget curl git dosfstools e2fsprogs parted xz-utils gdisk grub-pc
 
-      - name: Create image file and partitions
+      - name: Create image file and partitions (4GB - GPT with BIOS boot)
         run: |
-          dd if=/dev/zero of=arch-duco.img bs=1M count=8192
+          dd if=/dev/zero of=arch-duco.img bs=1M count=4096
           parted arch-duco.img mklabel gpt
+          # EFI partition (FAT32, 512MiB)
           parted arch-duco.img mkpart primary fat32 1MiB 513MiB
           parted arch-duco.img set 1 esp on
-          parted arch-duco.img mkpart primary ext4 513MiB 100%
+          # BIOS boot partition (1MiB, no filesystem)
+          parted arch-duco.img mkpart primary 513MiB 514MiB
+          parted arch-duco.img set 2 bios_grub on
+          # Root partition (ext4)
+          parted arch-duco.img mkpart primary ext4 514MiB 100%
           sudo losetup -P /dev/loop0 arch-duco.img
           sudo mkfs.fat -F32 /dev/loop0p1
-          sudo mkfs.ext4 -F /dev/loop0p2
+          sudo mkfs.ext4 -F /dev/loop0p3
 
       - name: Mount and bootstrap using Arch Docker
         run: |
           sudo mkdir -p /mnt/arch
-          sudo mount /dev/loop0p2 /mnt/arch
+          sudo mount /dev/loop0p3 /mnt/arch
           sudo mkdir -p /mnt/arch/boot/efi
           sudo mount /dev/loop0p1 /mnt/arch/boot/efi
 
@@ -41,8 +46,10 @@ jobs:
             pacman -Syu --noconfirm
             pacman -S --noconfirm arch-install-scripts
             pacstrap /mnt/arch base base-devel linux linux-firmware tmux git openssh networkmanager sudo vim rust cargo curl wget \
-              xorg xorg-server xfce4 xfce4-goodies lightdm lightdm-gtk-greeter \
-              firefox ttf-freefont ttf-dejavu ttf-ubuntu-font-family
+              xorg xorg-server xfce4 thunar xfce4-terminal mousepad xfce4-power-manager \
+              lightdm lightdm-gtk-greeter \
+              ttf-freefont ttf-dejavu ttf-ubuntu-font-family \
+              zenity gparted grub efibootmgr
             genfstab -U /mnt/arch >> /mnt/arch/etc/fstab
           "
 
@@ -51,117 +58,286 @@ jobs:
           sudo mkdir -p /mnt/arch/root/rust-miner
           sudo cp -r miner/* /mnt/arch/root/rust-miner/
 
-      - name: Configure system in chroot
+      - name: Create configuration script in image
+        run: |
+          cat << 'CFGSCRIPT' | sudo tee /mnt/arch/configure.sh
+          #!/bin/bash
+          pacman-key --init
+          pacman-key --populate archlinux
+          pacman -Syu --noconfirm
+
+          ln -sf /usr/share/zoneinfo/Asia/Ho_Chi_Minh /etc/localtime
+          hwclock --systohc
+          echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen
+          locale-gen
+          echo 'LANG=en_US.UTF-8' > /etc/locale.conf
+          echo 'KEYMAP=us' > /etc/vconsole.conf
+          echo 'arch-duco' > /etc/hostname
+
+          systemctl enable NetworkManager
+          systemctl enable lightdm
+
+          echo 'root:duco' | chpasswd
+          useradd -m -G wheel -s /bin/bash miner
+          echo 'miner:miner' | chpasswd
+          echo '%wheel ALL=(ALL) ALL' >> /etc/sudoers
+
+          cd /root/rust-miner
+          cargo build --release
+
+          # Start-miner script
+          cat > /usr/local/bin/start-miner << 'MINER'
+          #!/bin/bash
+          cd /root/rust-miner
+          ./target/release/duco_rust_miner
+          MINER
+          chmod +x /usr/local/bin/start-miner
+
+          # Headless version (no GUI)
+          cat > /usr/local/bin/start-miner-headless << 'HEADLESS'
+          #!/bin/bash
+          if ! pgrep -x "duco_rust_miner" > /dev/null; then
+            cd /root/rust-miner
+            tmux new-session -d -s miner './target/release/duco_rust_miner'
+            echo "Miner started in tmux session 'miner'. Attach with: tmux attach -t miner"
+          else
+            echo "Miner already running."
+          fi
+          HEADLESS
+          chmod +x /usr/local/bin/start-miner-headless
+
+          # Desktop shortcut
+          mkdir -p /home/miner/Desktop
+          cat > /home/miner/Desktop/duco-miner.desktop << 'DESKTOP'
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=DuinoCoin Miner
+          Comment=Start DuinoCoin Miner (GUI)
+          Exec=xfce4-terminal --title=Duino-Miner --hold -e start-miner
+          Icon=utilities-terminal
+          Terminal=false
+          Categories=Utility;
+          DESKTOP
+          chmod +x /home/miner/Desktop/duco-miner.desktop
+
+          # Headless shortcut
+          cat > /home/miner/Desktop/start-miner-headless.desktop << 'HEADLESSDESK'
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=Miner Headless
+          Comment=Start miner in background (tmux)
+          Exec=xfce4-terminal --title=Headless-Miner --hold -e start-miner-headless
+          Icon=utilities-terminal
+          Terminal=false
+          Categories=Utility;
+          HEADLESSDESK
+          chmod +x /home/miner/Desktop/start-miner-headless.desktop
+
+          chown -R miner:miner /home/miner/Desktop
+
+          mkdir -p /home/miner/.local/share/applications
+          cp /home/miner/Desktop/*.desktop /home/miner/.local/share/applications/
+          chown -R miner:miner /home/miner/.local
+
+          # ---------- DETAILED INSTRUCTIONS (ENGLISH) ----------
+          cat > /home/miner/Desktop/HowTo_Write_Expand.txt << 'HOWTO'
+          ========================================================================
+                 HOW TO WRITE THE IMAGE TO A DISK & EXPAND THE ROOT PARTITION
+          ========================================================================
+
+          BEFORE YOU START:
+          - This image (~4GB) contains Arch Linux + Xfce4 + DuinoCoin miner.
+          - Supports BOTH UEFI and Legacy BIOS (works on 10-year-old machines).
+          - Writing this image will OVERWRITE ALL DATA on the target disk.
+          - BACKUP important data before proceeding.
+
+          -----------------------------------------------------------------------
+          STEP 1: Check your system type (UEFI vs Legacy)
+          -----------------------------------------------------------------------
+
+          On Windows: Open "System Information" → look for "BIOS Mode".
+          On Linux:   If `ls /sys/firmware/efi` exists → UEFI; otherwise Legacy.
+
+          -----------------------------------------------------------------------
+          STEP 2: Identify the target disk (HDD/SSD/USB)
+          -----------------------------------------------------------------------
+
+          Open a terminal and run:
+
+            lsblk -o NAME,SIZE,MODEL,SERIAL,FSTYPE,LABEL,MOUNTPOINT
+
+          Example:
+            sda    500GB  Samsung SSD 860 EVO    (your internal disk)
+            sdb     32GB  Kingston DataTraveler  (your USB)
+
+          ⚠️  Do NOT choose your system disk (the one with /, /boot, /home).
+          ⚠️  Use the whole device (e.g., /dev/sdb), NOT a partition.
+
+          -----------------------------------------------------------------------
+          STEP 3: Write the image to disk
+          -----------------------------------------------------------------------
+
+          Option A – `dd` (Linux/macOS):
+            xz -d arch-duco.img.xz
+            sudo dd if=arch-duco.img of=/dev/sdX bs=4M status=progress
+
+          Option B – balenaEtcher (cross-platform GUI):
+            Download from https://www.balena.io/etcher/
+            Select the .img (or .xz) and target drive, click Flash.
+
+          Option C – Rufus (Windows):
+            Download from https://rufus.ie/
+            Select the .img file (works with .xz too).
+            🔧 For Legacy BIOS: Under "Partition scheme", choose
+               "MBR partition scheme for BIOS or UEFI-CSM".
+            Check "Add fixes for older BIOSes" if available.
+            Click START and confirm.
+
+          -----------------------------------------------------------------------
+          STEP 4: Boot from the written disk
+          -----------------------------------------------------------------------
+
+          - Insert the USB/disk and restart.
+          - Enter the boot menu (usually F12, F10, Esc, or Fn+F12).
+          - Choose your USB/disk.
+          - If you have Legacy BIOS, select the entry without "UEFI:" prefix.
+          - If you see a black screen after boot, try adding `nomodeset`:
+            At the GRUB menu, press `e`, find the line starting with `linux`,
+            add `nomodeset` at the end, then press Ctrl+X or F10 to boot.
+
+          -----------------------------------------------------------------------
+          STEP 5: Expand the root partition to use the full disk space
+          -----------------------------------------------------------------------
+
+          After boot, the root partition is only ~3.5GB. Expand it:
+
+          Option A – GParted (GUI, already installed):
+            sudo gparted
+            Select the disk (e.g., /dev/sda). Right-click partition 3 (root),
+            choose Resize/Move, drag the slider to the end, apply.
+
+          Option B – cfdisk (command line):
+            sudo cfdisk /dev/sda
+            Select partition 3, choose Resize, set new size to maximum,
+            write and quit. Then: sudo resize2fs /dev/sda3
+
+          Option C – quick one‑liner (if device is /dev/sda):
+            sudo parted /dev/sda resizepart 3 100%
+            sudo resize2fs /dev/sda3
+
+          -----------------------------------------------------------------------
+          STEP 6: If your machine still doesn't boot the image
+          -----------------------------------------------------------------------
+
+          Try these solutions:
+
+          1. Update your BIOS/UEFI firmware to the latest version.
+          2. In BIOS, disable Secure Boot, enable CSM (Compatibility Support Module).
+          3. Use a different USB port (preferably USB 2.0).
+          4. Try writing the image with a different tool (e.g., use `dd` instead of Rufus).
+          5. If you have a very old machine, you can use a live Linux USB (e.g., Ubuntu)
+             to boot, then from the live system, use `dd` to write the image directly
+             to your internal HDD/SSD.
+
+          -----------------------------------------------------------------------
+          Bonus: Run miner without GUI (headless mode)
+          -----------------------------------------------------------------------
+
+          If you don't need the desktop, you can start the miner in the background:
+            start-miner-headless
+          This will launch the miner inside a tmux session. To view its output:
+            tmux attach -t miner
+          Detach with Ctrl+B, D.
+
+          ========================================================================
+          HOWTO
+          chown miner:miner /home/miner/Desktop/HowTo_Write_Expand.txt
+
+          # Autostart popup with instructions
+          mkdir -p /home/miner/.config/autostart
+          cat > /home/miner/.config/autostart/show-instructions.desktop << 'AUTOSTART'
+          [Desktop Entry]
+          Type=Application
+          Name=How to Write Image & Expand Partition
+          Exec=zenity --text-info --title="How to Write Image & Expand Partition" --filename=/home/miner/Desktop/HowTo_Write_Expand.txt --width=800 --height=600
+          OnlyShowIn=XFCE;
+          X-GNOME-Autostart-enabled=true
+          AUTOSTART
+          chown -R miner:miner /home/miner/.config
+
+          # LightDM auto-login for miner
+          cat > /etc/lightdm/lightdm.conf << 'LIGHTDM'
+          [Seat:*]
+          greeter-session=lightdm-gtk-greeter
+          user-session=xfce
+          autologin-user=miner
+          autologin-session=xfce
+          LIGHTDM
+
+          cat > /etc/lightdm/lightdm-gtk-greeter.conf << 'GREETER'
+          [greeter]
+          theme-name=Adwaita
+          icon-theme-name=Adwaita
+          font-name=Sans 10
+          user-list=true
+          GREETER
+
+          # MOTD
+          cat > /etc/motd << 'MOTD'
+          ============================================
+            Arch Linux with DuinoCoin Miner
+          ============================================
+            Users: root / duco     |     miner / miner
+
+            Start the miner:
+              - GUI: desktop icon "DuinoCoin Miner"
+              - Headless (background): start-miner-headless
+
+            For full instructions, see the file on your Desktop:
+            HowTo_Write_Expand.txt  (popup will appear automatically)
+
+            WARNING: Writing this image will OVERWRITE all data.
+          ============================================
+          MOTD
+
+          # ---------- GRUB INSTALL FOR UEFI (in chroot) ----------
+          # This will be run inside chroot, so we use the loop device directly.
+          # We only install UEFI version here; Legacy will be installed later from host.
+          grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB --removable
+          grub-mkconfig -o /boot/grub/grub.cfg
+
+          # ---------- FINAL CLEANUP ----------
+          pacman -Rns --noconfirm base-devel rust cargo gcc make autoconf automake binutils bison flex m4 patch pkgconf 2>/dev/null || true
+          pacman -Scc --noconfirm
+          rm -rf /var/cache/pacman/pkg/*
+          rm -rf /root/.cargo/registry /root/.cargo/git /root/rust-miner/target
+          rm -rf /usr/share/doc /usr/share/man /usr/share/info
+          rm -rf /var/log/* /tmp/* /var/tmp/*
+          rm -f /configure.sh
+          CFGSCRIPT
+          sudo chmod +x /mnt/arch/configure.sh
+
+      - name: Run configuration script in chroot
         run: |
           docker run --rm -v /mnt/arch:/mnt/arch --privileged archlinux:latest /bin/bash -c "
             pacman -Syu --noconfirm
             pacman -S --noconfirm arch-install-scripts
-            /usr/bin/arch-chroot /mnt/arch /bin/bash << 'EOF'
-            # Cấu hình cơ bản
-            ln -sf /usr/share/zoneinfo/Asia/Ho_Chi_Minh /etc/localtime
-            hwclock --systohc
-            echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen
-            locale-gen
-            echo 'LANG=en_US.UTF-8' > /etc/locale.conf
-            echo 'KEYMAP=us' > /etc/vconsole.conf
-            echo 'arch-duco' > /etc/hostname
-            
-            # Enable services
-            systemctl enable NetworkManager
-            systemctl enable lightdm
-            
-            # Tạo users
-            echo 'root:duco' | chpasswd
-            useradd -m -G wheel -s /bin/bash miner
-            echo 'miner:miner' | chpasswd
-            echo '%wheel ALL=(ALL) ALL' >> /etc/sudoers
-            
-            # Build miner
-            cd /root/rust-miner
-            cargo build --release
-            
-            # Tạo script start-miner
-            cat > /usr/local/bin/start-miner << 'MINER'
-            #!/bin/bash
-            cd /root/rust-miner
-            ./target/release/duco_rust_miner
-            MINER
-            chmod +x /usr/local/bin/start-miner
-            
-            # Tạo desktop shortcut
-            mkdir -p /home/miner/Desktop
-            cat > /home/miner/Desktop/duco-miner.desktop << 'DESKTOP'
-            [Desktop Entry]
-            Version=1.0
-            Type=Application
-            Name=DuinoCoin Miner
-            Comment=Start DuinoCoin Miner
-            Exec=xfce4-terminal --title=Duino-Miner --hold -e start-miner
-            Icon=utilities-terminal
-            Terminal=false
-            Categories=Utility;
-            DESKTOP
-            chmod +x /home/miner/Desktop/duco-miner.desktop
-            chown -R miner:miner /home/miner/Desktop
-            
-            # Copy to applications menu
-            mkdir -p /home/miner/.local/share/applications
-            cp /home/miner/Desktop/duco-miner.desktop /home/miner/.local/share/applications/
-            chown -R miner:miner /home/miner/.local
-            
-            # Cấu hình lightdm (không auto login)
-            cat > /etc/lightdm/lightdm.conf << 'LIGHTDM'
-            [Seat:*]
-            greeter-session=lightdm-gtk-greeter
-            user-session=xfce
-            LIGHTDM
-            
-            # Cấu hình greeter
-            cat > /etc/lightdm/lightdm-gtk-greeter.conf << 'GREETER'
-            [greeter]
-            theme-name=Adwaita
-            icon-theme-name=Adwaita
-            font-name=Sans 10
-            user-list=true
-            GREETER
-            
-            # Message khi đăng nhập
-            cat > /etc/motd << 'MOTD'
-            ===========================================
-              Arch Linux with DuinoCoin Miner
-            ===========================================
-              
-              Users:
-                root : duco
-                miner: miner
-              
-              To start miner:
-                - Desktop icon: DuinoCoin Miner
-                - Command: start-miner
-              
-              GUI: Xfce4
-            ===========================================
-            MOTD
-            
-            # Cấu hình GRUB
-            pacman -S --noconfirm grub efibootmgr
-            grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
-            grub-mkconfig -o /boot/grub/grub.cfg
-            
-            # Dọn dẹp
-            pacman -Scc --noconfirm
-            rm -rf /var/cache/pacman/pkg/*
-            rm -rf /root/.cargo/registry
-            rm -rf /root/.cargo/git
-            EOF
+            /usr/bin/arch-chroot /mnt/arch /bin/bash /configure.sh
           "
+
+      - name: Install GRUB for Legacy BIOS (from host)
+        run: |
+          # Install GRUB into the MBR of the image (uses the BIOS boot partition)
+          sudo grub-install --boot-directory=/mnt/arch/boot --target=i386-pc --recheck /dev/loop0
 
       - name: Cleanup and compress image
         run: |
           sudo umount /mnt/arch/boot/efi
           sudo umount /mnt/arch
           sudo losetup -d /dev/loop0
-          xz -z -9 -c arch-duco.img > arch-duco.img.xz
+          xz -z -9e -c arch-duco.img > arch-duco.img.xz
           sha256sum arch-duco.img.xz > arch-duco.img.xz.sha256
 
       - name: Upload artifact
