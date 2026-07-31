@@ -66,21 +66,31 @@ jobs:
             exit 1
           fi
 
-      - name: Start QEMU with VNC (UEFI & Legacy compatible)
+      - name: Find OVMF path
+        id: find_ovmf
+        run: |
+          # Tìm kiếm cả OVMF_CODE.fd (cũ) và OVMF_CODE_4M.fd (mới)
+          OVMF_PATH=$(find /usr/share -type f \( -name "OVMF_CODE.fd" -o -name "OVMF_CODE_4M.fd" \) 2>/dev/null | head -n1)
+          if [ -z "$OVMF_PATH" ]; then
+            echo "ovmf_path=" >> $GITHUB_OUTPUT
+            echo "⚠️ OVMF not found! Will use default SeaBIOS (Legacy)."
+          else
+            echo "ovmf_path=$OVMF_PATH" >> $GITHUB_OUTPUT
+            echo "✅ Found OVMF at: $OVMF_PATH"
+          fi
+
+      - name: Start QEMU with VNC
         run: |
           cd ./artifact
-          # Tìm OVMF cho UEFI boot
-          OVMF_PATH=$(find /usr/share -name "OVMF_CODE.fd" 2>/dev/null | head -n1)
-          if [ -n "$OVMF_PATH" ] && [ -f "$OVMF_PATH" ]; then
-            BIOS_OPT="-bios $OVMF_PATH"
-            echo "✅ Using UEFI (OVMF): $OVMF_PATH"
+          OVMF="${{ steps.find_ovmf.outputs.ovmf_path }}"
+          if [ -n "$OVMF" ]; then
+            BIOS_OPT="-bios $OVMF"
+            echo "✅ Booting with UEFI (OVMF)"
           else
-            # Fallback: Legacy BIOS
             BIOS_OPT=""
-            echo "⚠️ OVMF not found, using Legacy BIOS (SeaBIOS)"
+            echo "⚠️ Booting with Legacy BIOS (SeaBIOS)"
           fi
           
-          # Không dùng KVM vì runner không hỗ trợ, dùng TCG với CPU qemu64
           qemu-system-x86_64 \
             -drive file=disk.img,format=raw \
             -m 2048 \
@@ -91,7 +101,6 @@ jobs:
             -machine accel=tcg \
             -serial file:qemu.log &
           
-          # Đợi QEMU khởi động
           sleep 15
 
       - name: Start noVNC
