@@ -66,44 +66,48 @@ jobs:
             exit 1
           fi
 
-      - name: Find OVMF path
-        id: find_ovmf
-        run: |
-          OVMF_PATH=$(find /usr/share -name "OVMF_CODE.fd" 2>/dev/null | head -n1)
-          if [ -z "$OVMF_PATH" ]; then
-            # Fallback to default BIOS (legacy)
-            OVMF_PATH=""
-          fi
-          echo "ovmf_path=$OVMF_PATH" >> $GITHUB_OUTPUT
-          echo "Found OVMF: $OVMF_PATH"
-
-      - name: Start QEMU with VNC
+      - name: Start QEMU with VNC (UEFI & Legacy compatible)
         run: |
           cd ./artifact
-          OVMF="${{ steps.find_ovmf.outputs.ovmf_path }}"
-          if [ -n "$OVMF" ]; then
-            BIOS_OPT="-bios $OVMF"
+          # Tìm OVMF cho UEFI boot
+          OVMF_PATH=$(find /usr/share -name "OVMF_CODE.fd" 2>/dev/null | head -n1)
+          if [ -n "$OVMF_PATH" ] && [ -f "$OVMF_PATH" ]; then
+            BIOS_OPT="-bios $OVMF_PATH"
+            echo "✅ Using UEFI (OVMF): $OVMF_PATH"
           else
+            # Fallback: Legacy BIOS
             BIOS_OPT=""
-            echo "Warning: OVMF not found, using default BIOS (Legacy)"
+            echo "⚠️ OVMF not found, using Legacy BIOS (SeaBIOS)"
           fi
+          
+          # -enable-kvm: bật hardware acceleration (nếu có) để boot nhanh hơn
+          # -cpu host: tối ưu CPU cho runner
           qemu-system-x86_64 \
             -drive file=disk.img,format=raw \
             -m 2048 \
             $BIOS_OPT \
             -vnc :1 \
-            -netdev user,id=net0 -device e1000,netdev=net0 &
-          sleep 10
+            -netdev user,id=net0 -device e1000,netdev=net0 \
+            -enable-kvm \
+            -cpu host \
+            -machine accel=kvm:tcg \
+            -serial file:qemu.log &
+          
+          # Đợi QEMU khởi động
+          sleep 15
 
       - name: Start noVNC
         run: |
+          # noVNC phục vụ giao diện web trên cổng 6080
           websockify --web /usr/share/novnc 6080 localhost:5901 &
           sleep 5
 
       - name: Expose via Cloudflare Tunnel
         run: |
+          # Cloudflare Tunnel tạo public URL tạm thời
           cloudflared tunnel --url http://localhost:6080 &
           sleep 10
+          # Lấy URL từ API của cloudflared
           curl -s http://localhost:4040/api/tunnels | jq -r '.result[0].url' > tunnel_url.txt || echo "http://localhost:6080" > tunnel_url.txt
 
       - name: Show public URL
@@ -113,6 +117,9 @@ jobs:
           echo "  📡 Public URL: $(cat tunnel_url.txt)/vnc.html"
           echo "  ⏱️  This URL will be active for ~15 minutes."
           echo "=========================================="
+          echo ""
+          echo "====== QEMU Serial Log (first 50 lines) ======"
+          cat ./artifact/qemu.log 2>/dev/null | head -50 || echo "No log yet"
 
       - name: Keep alive for testing
         run: sleep 900
