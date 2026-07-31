@@ -29,6 +29,8 @@ jobs:
           sudo losetup -P /dev/loop0 arch-duco.img
           sudo mkfs.fat -F32 /dev/loop0p1
           sudo mkfs.ext4 -F /dev/loop0p3
+          # Lưu UUID của root partition vào file để dùng sau
+          sudo blkid -s UUID -o value /dev/loop0p3 | sudo tee /tmp/root_uuid.txt
 
       - name: Mount and bootstrap using Arch Docker
         run: |
@@ -36,6 +38,10 @@ jobs:
           sudo mount /dev/loop0p3 /mnt/arch
           sudo mkdir -p /mnt/arch/boot/efi
           sudo mount /dev/loop0p1 /mnt/arch/boot/efi
+
+          # Lấy UUID từ file đã lưu
+          ROOT_UUID=$(cat /tmp/root_uuid.txt)
+          EFI_UUID=$(sudo blkid -s UUID -o value /dev/loop0p1)
 
           docker run --rm -v /mnt/arch:/mnt/arch --privileged archlinux:latest /bin/bash -c "
             pacman-key --init
@@ -47,7 +53,11 @@ jobs:
               lightdm lightdm-gtk-greeter \
               ttf-freefont ttf-dejavu ttf-ubuntu-font-family \
               zenity gparted grub efibootmgr
-            genfstab -U /mnt/arch >> /mnt/arch/etc/fstab
+            # Tạo fstab thủ công với UUID đã biết (không dùng genfstab)
+            cat > /mnt/arch/etc/fstab << EOF
+            UUID=$ROOT_UUID / ext4 rw,relatime 0 1
+            UUID=$EFI_UUID /boot/efi vfat rw,relatime,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro 0 2
+            EOF
           "
 
       - name: Copy miner source into image
@@ -57,8 +67,12 @@ jobs:
 
       - name: Create configuration script in image
         run: |
+          # Lấy UUID từ file đã lưu
+          ROOT_UUID=$(cat /tmp/root_uuid.txt)
+          export ROOT_UUID
           cat << 'CFGSCRIPT' | sudo tee /mnt/arch/configure.sh
           #!/bin/bash
+          ROOT_UUID="${ROOT_UUID}"
           pacman-key --init
           pacman-key --populate archlinux
           pacman -Syu --noconfirm
@@ -363,7 +377,9 @@ jobs:
           ============================================
           MOTD
 
-          # ---------- GRUB INSTALL FOR UEFI (in chroot) ----------
+          # ---------- GRUB CONFIG WITH FIXED UUID ----------
+          # Set kernel command line with root=UUID
+          sed -i "s/GRUB_CMDLINE_LINUX_DEFAULT=\".*\"/GRUB_CMDLINE_LINUX_DEFAULT=\"quiet root=UUID=$ROOT_UUID\"/" /etc/default/grub
           grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB --removable
           grub-mkconfig -o /boot/grub/grub.cfg
 
