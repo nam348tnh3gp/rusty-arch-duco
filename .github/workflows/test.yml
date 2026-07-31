@@ -66,41 +66,38 @@ jobs:
             exit 1
           fi
 
-      - name: Find OVMF path
-        id: find_ovmf
-        run: |
-          # Tìm kiếm cả OVMF_CODE.fd (cũ) và OVMF_CODE_4M.fd (mới)
-          OVMF_PATH=$(find /usr/share -type f \( -name "OVMF_CODE.fd" -o -name "OVMF_CODE_4M.fd" \) 2>/dev/null | head -n1)
-          if [ -z "$OVMF_PATH" ]; then
-            echo "ovmf_path=" >> $GITHUB_OUTPUT
-            echo "⚠️ OVMF not found! Will use default SeaBIOS (Legacy)."
-          else
-            echo "ovmf_path=$OVMF_PATH" >> $GITHUB_OUTPUT
-            echo "✅ Found OVMF at: $OVMF_PATH"
-          fi
-
-      - name: Start QEMU with VNC
+      - name: Start QEMU with VNC (using pflash for UEFI)
         run: |
           cd ./artifact
-          OVMF="${{ steps.find_ovmf.outputs.ovmf_path }}"
-          if [ -n "$OVMF" ]; then
-            BIOS_OPT="-bios $OVMF"
-            echo "✅ Booting with UEFI (OVMF)"
+          OVMF_CODE="/usr/share/OVMF/OVMF_CODE_4M.fd"
+          OVMF_VARS="/usr/share/OVMF/OVMF_VARS_4M.fd"
+          
+          if [ -f "$OVMF_CODE" ] && [ -f "$OVMF_VARS" ]; then
+            echo "✅ Booting with UEFI using pflash"
+            echo "   OVMF_CODE: $OVMF_CODE"
+            echo "   OVMF_VARS: $OVMF_VARS"
+            
+            qemu-system-x86_64 \
+              -drive file=disk.img,format=raw \
+              -m 2048 \
+              -drive if=pflash,format=raw,readonly=on,file="$OVMF_CODE" \
+              -drive if=pflash,format=raw,file="$OVMF_VARS" \
+              -vnc :1 \
+              -netdev user,id=net0 -device e1000,netdev=net0 \
+              -cpu qemu64 \
+              -machine accel=tcg \
+              -serial file:qemu.log &
           else
-            BIOS_OPT=""
-            echo "⚠️ Booting with Legacy BIOS (SeaBIOS)"
+            echo "⚠️ OVMF files not found, using Legacy BIOS (SeaBIOS)"
+            qemu-system-x86_64 \
+              -drive file=disk.img,format=raw \
+              -m 2048 \
+              -vnc :1 \
+              -netdev user,id=net0 -device e1000,netdev=net0 \
+              -cpu qemu64 \
+              -machine accel=tcg \
+              -serial file:qemu.log &
           fi
-          
-          qemu-system-x86_64 \
-            -drive file=disk.img,format=raw \
-            -m 2048 \
-            $BIOS_OPT \
-            -vnc :1 \
-            -netdev user,id=net0 -device e1000,netdev=net0 \
-            -cpu qemu64 \
-            -machine accel=tcg \
-            -serial file:qemu.log &
-          
           sleep 15
 
       - name: Start noVNC
