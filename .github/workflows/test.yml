@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       artifact_url:
-        description: 'URL of the artifact to download (e.g., https://github.com/.../artifacts/123)'
+        description: 'Artifact URL (e.g., https://github.com/owner/repo/actions/runs/123/artifacts/456)'
         required: true
         type: string
 
@@ -15,7 +15,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y qemu-system-x86 ovmf novnc websockify curl wget unzip
+          sudo apt install -y qemu-system-x86 ovmf novnc websockify curl wget unzip jq
 
       - name: Install cloudflared
         run: |
@@ -23,23 +23,42 @@ jobs:
           chmod +x cloudflared-linux-amd64
           sudo mv cloudflared-linux-amd64 /usr/local/bin/cloudflared
 
-      - name: Download artifact
+      - name: Download artifact via API
         run: |
           mkdir -p ./artifact
           cd ./artifact
+          
+          ARTIFACT_URL="${{ github.event.inputs.artifact_url }}"
+          ARTIFACT_ID=$(echo "$ARTIFACT_URL" | grep -oE '[0-9]+$')
+          
+          echo "Artifact ID: $ARTIFACT_ID"
+          
+          API_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID")
+          
+          DOWNLOAD_URL=$(echo "$API_RESPONSE" | jq -r '.archive_download_url')
+          
+          if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ]; then
+            echo "Error: Cannot get download URL"
+            echo "API Response: $API_RESPONSE"
+            exit 1
+          fi
+          
+          echo "Download URL: $DOWNLOAD_URL"
+          
           curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -o artifact.zip "${{ github.event.inputs.artifact_url }}"
+            -o artifact.zip "$DOWNLOAD_URL"
+          
           unzip artifact.zip
 
       - name: Extract image
         run: |
           cd ./artifact
-          # Giải nén file .xz nếu có
           if ls *.xz 1> /dev/null 2>&1; then
             xz -d *.xz
           fi
-          # Đổi tên file .img thành tên chuẩn để dễ sử dụng
-          IMG_FILE=$(ls *.img | head -n 1)
+          IMG_FILE=$(ls *.img 2>/dev/null | head -n 1)
           if [ -n "$IMG_FILE" ]; then
             mv "$IMG_FILE" disk.img
           else
@@ -67,7 +86,6 @@ jobs:
         run: |
           cloudflared tunnel --url http://localhost:6080 &
           sleep 10
-          # Lấy URL từ API của cloudflared
           curl -s http://localhost:4040/api/tunnels | jq -r '.result[0].url' > tunnel_url.txt || echo "http://localhost:6080" > tunnel_url.txt
 
       - name: Show public URL
@@ -79,6 +97,4 @@ jobs:
           echo "=========================================="
 
       - name: Keep alive for testing
-        run: |
-          echo "Keeping the workflow alive for testing..."
-          sleep 900  # 15 phút
+        run: sleep 900
