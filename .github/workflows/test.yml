@@ -66,13 +66,31 @@ jobs:
             exit 1
           fi
 
+      - name: Find OVMF path
+        id: find_ovmf
+        run: |
+          OVMF_PATH=$(find /usr/share -name "OVMF_CODE.fd" 2>/dev/null | head -n1)
+          if [ -z "$OVMF_PATH" ]; then
+            # Fallback to default BIOS (legacy)
+            OVMF_PATH=""
+          fi
+          echo "ovmf_path=$OVMF_PATH" >> $GITHUB_OUTPUT
+          echo "Found OVMF: $OVMF_PATH"
+
       - name: Start QEMU with VNC
         run: |
           cd ./artifact
+          OVMF="${{ steps.find_ovmf.outputs.ovmf_path }}"
+          if [ -n "$OVMF" ]; then
+            BIOS_OPT="-bios $OVMF"
+          else
+            BIOS_OPT=""
+            echo "Warning: OVMF not found, using default BIOS (Legacy)"
+          fi
           qemu-system-x86_64 \
             -drive file=disk.img,format=raw \
             -m 2048 \
-            -bios /usr/share/OVMF/OVMF_CODE.fd \
+            $BIOS_OPT \
             -vnc :1 \
             -netdev user,id=net0 -device e1000,netdev=net0 &
           sleep 10
