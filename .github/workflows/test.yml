@@ -80,17 +80,15 @@ jobs:
             echo "⚠️ OVMF not found, using Legacy BIOS (SeaBIOS)"
           fi
           
-          # -enable-kvm: bật hardware acceleration (nếu có) để boot nhanh hơn
-          # -cpu host: tối ưu CPU cho runner
+          # Không dùng KVM vì runner không hỗ trợ, dùng TCG với CPU qemu64
           qemu-system-x86_64 \
             -drive file=disk.img,format=raw \
             -m 2048 \
             $BIOS_OPT \
             -vnc :1 \
             -netdev user,id=net0 -device e1000,netdev=net0 \
-            -enable-kvm \
-            -cpu host \
-            -machine accel=kvm:tcg \
+            -cpu qemu64 \
+            -machine accel=tcg \
             -serial file:qemu.log &
           
           # Đợi QEMU khởi động
@@ -98,16 +96,13 @@ jobs:
 
       - name: Start noVNC
         run: |
-          # noVNC phục vụ giao diện web trên cổng 6080
           websockify --web /usr/share/novnc 6080 localhost:5901 &
           sleep 5
 
       - name: Expose via Cloudflare Tunnel
         run: |
-          # Cloudflare Tunnel tạo public URL tạm thời
           cloudflared tunnel --url http://localhost:6080 &
           sleep 10
-          # Lấy URL từ API của cloudflared
           curl -s http://localhost:4040/api/tunnels | jq -r '.result[0].url' > tunnel_url.txt || echo "http://localhost:6080" > tunnel_url.txt
 
       - name: Show public URL
