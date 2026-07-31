@@ -1,0 +1,84 @@
+name: Test Artifact with QEMU and noVNC
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_url:
+        description: 'URL of the artifact to download (e.g., https://github.com/.../artifacts/123)'
+        required: true
+        type: string
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y qemu-system-x86 ovmf novnc websockify curl wget unzip
+
+      - name: Install cloudflared
+        run: |
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod +x cloudflared-linux-amd64
+          sudo mv cloudflared-linux-amd64 /usr/local/bin/cloudflared
+
+      - name: Download artifact
+        run: |
+          mkdir -p ./artifact
+          cd ./artifact
+          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -o artifact.zip "${{ github.event.inputs.artifact_url }}"
+          unzip artifact.zip
+
+      - name: Extract image
+        run: |
+          cd ./artifact
+          # Giải nén file .xz nếu có
+          if ls *.xz 1> /dev/null 2>&1; then
+            xz -d *.xz
+          fi
+          # Đổi tên file .img thành tên chuẩn để dễ sử dụng
+          IMG_FILE=$(ls *.img | head -n 1)
+          if [ -n "$IMG_FILE" ]; then
+            mv "$IMG_FILE" disk.img
+          else
+            echo "No .img file found!"
+            exit 1
+          fi
+
+      - name: Start QEMU with VNC
+        run: |
+          cd ./artifact
+          qemu-system-x86_64 \
+            -drive file=disk.img,format=raw \
+            -m 2048 \
+            -bios /usr/share/OVMF/OVMF_CODE.fd \
+            -vnc :1 \
+            -netdev user,id=net0 -device e1000,netdev=net0 &
+          sleep 10
+
+      - name: Start noVNC
+        run: |
+          websockify --web /usr/share/novnc 6080 localhost:5901 &
+          sleep 5
+
+      - name: Expose via Cloudflare Tunnel
+        run: |
+          cloudflared tunnel --url http://localhost:6080 &
+          sleep 10
+          # Lấy URL từ API của cloudflared
+          curl -s http://localhost:4040/api/tunnels | jq -r '.result[0].url' > tunnel_url.txt || echo "http://localhost:6080" > tunnel_url.txt
+
+      - name: Show public URL
+        run: |
+          echo "=========================================="
+          echo "  🖥️  VNC Server is running!"
+          echo "  📡 Public URL: $(cat tunnel_url.txt)/vnc.html"
+          echo "  ⏱️  This URL will be active for ~15 minutes."
+          echo "=========================================="
+
+      - name: Keep alive for testing
+        run: |
+          echo "Keeping the workflow alive for testing..."
+          sleep 900  # 15 phút
