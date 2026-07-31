@@ -1,4 +1,4 @@
-name: Build Arch Linux with DuinoCoin Miner (Xfce4 GUI) - Dual Boot
+name: Build Arch Linux with DuinoCoin Miner (Xfce4 GUI) - Dual Boot + Rescue Guide
 
 on:
   push:
@@ -21,13 +21,10 @@ jobs:
         run: |
           dd if=/dev/zero of=arch-duco.img bs=1M count=4096
           parted arch-duco.img mklabel gpt
-          # EFI partition (FAT32, 512MiB)
           parted arch-duco.img mkpart primary fat32 1MiB 513MiB
           parted arch-duco.img set 1 esp on
-          # BIOS boot partition (1MiB, no filesystem)
           parted arch-duco.img mkpart primary 513MiB 514MiB
           parted arch-duco.img set 2 bios_grub on
-          # Root partition (ext4)
           parted arch-duco.img mkpart primary ext4 514MiB 100%
           sudo losetup -P /dev/loop0 arch-duco.img
           sudo mkfs.fat -F32 /dev/loop0p1
@@ -85,7 +82,6 @@ jobs:
           cd /root/rust-miner
           cargo build --release
 
-          # Start-miner script
           cat > /usr/local/bin/start-miner << 'MINER'
           #!/bin/bash
           cd /root/rust-miner
@@ -93,7 +89,6 @@ jobs:
           MINER
           chmod +x /usr/local/bin/start-miner
 
-          # Headless version (no GUI)
           cat > /usr/local/bin/start-miner-headless << 'HEADLESS'
           #!/bin/bash
           if ! pgrep -x "duco_rust_miner" > /dev/null; then
@@ -106,7 +101,6 @@ jobs:
           HEADLESS
           chmod +x /usr/local/bin/start-miner-headless
 
-          # Desktop shortcut
           mkdir -p /home/miner/Desktop
           cat > /home/miner/Desktop/duco-miner.desktop << 'DESKTOP'
           [Desktop Entry]
@@ -121,7 +115,6 @@ jobs:
           DESKTOP
           chmod +x /home/miner/Desktop/duco-miner.desktop
 
-          # Headless shortcut
           cat > /home/miner/Desktop/start-miner-headless.desktop << 'HEADLESSDESK'
           [Desktop Entry]
           Version=1.0
@@ -136,12 +129,11 @@ jobs:
           chmod +x /home/miner/Desktop/start-miner-headless.desktop
 
           chown -R miner:miner /home/miner/Desktop
-
           mkdir -p /home/miner/.local/share/applications
           cp /home/miner/Desktop/*.desktop /home/miner/.local/share/applications/
           chown -R miner:miner /home/miner/.local
 
-          # ---------- DETAILED INSTRUCTIONS (ENGLISH) ----------
+          # ---------- DETAILED INSTRUCTIONS ----------
           cat > /home/miner/Desktop/HowTo_Write_Expand.txt << 'HOWTO'
           ========================================================================
                  HOW TO WRITE THE IMAGE TO A DISK & EXPAND THE ROOT PARTITION
@@ -203,9 +195,6 @@ jobs:
           - Enter the boot menu (usually F12, F10, Esc, or Fn+F12).
           - Choose your USB/disk.
           - If you have Legacy BIOS, select the entry without "UEFI:" prefix.
-          - If you see a black screen after boot, try adding `nomodeset`:
-            At the GRUB menu, press `e`, find the line starting with `linux`,
-            add `nomodeset` at the end, then press Ctrl+X or F10 to boot.
 
           -----------------------------------------------------------------------
           STEP 5: Expand the root partition to use the full disk space
@@ -227,23 +216,92 @@ jobs:
             sudo parted /dev/sda resizepart 3 100%
             sudo resize2fs /dev/sda3
 
-          -----------------------------------------------------------------------
-          STEP 6: If your machine still doesn't boot the image
-          -----------------------------------------------------------------------
+          ========================================================================
+          TROUBLESHOOTING: If GUI (Xfce) does not start – black screen
+          ========================================================================
 
-          Try these solutions:
-
-          1. Update your BIOS/UEFI firmware to the latest version.
-          2. In BIOS, disable Secure Boot, enable CSM (Compatibility Support Module).
-          3. Use a different USB port (preferably USB 2.0).
-          4. Try writing the image with a different tool (e.g., use `dd` instead of Rufus).
-          5. If you have a very old machine, you can use a live Linux USB (e.g., Ubuntu)
-             to boot, then from the live system, use `dd` to write the image directly
-             to your internal HDD/SSD.
+          Some older hardware (especially integrated GPUs) may need extra drivers.
+          Follow these steps to get the graphical interface working:
 
           -----------------------------------------------------------------------
+          A. Boot into headless (text) mode
+          -----------------------------------------------------------------------
+
+          - At the GRUB boot menu, press 'e' to edit the boot entry.
+          - Find the line starting with 'linux' (contains /boot/vmlinuz...).
+          - Add a space and then the word '3' or 'systemd.unit=multi-user.target'
+            at the end of that line.
+          - Press Ctrl+X or F10 to boot.
+          - You will now be at a text console (no GUI).
+
+          -----------------------------------------------------------------------
+          B. Connect to the internet (if not already connected)
+          -----------------------------------------------------------------------
+
+          For wired connection, it should work automatically.
+          For WiFi, run:
+            sudo nmcli device wifi list
+            sudo nmcli device wifi connect "SSID" password "PASSWORD"
+
+          Verify with: ping google.com
+
+          -----------------------------------------------------------------------
+          C. Install the appropriate GPU driver
+          -----------------------------------------------------------------------
+
+          Identify your GPU:
+
+            lspci | grep -E "VGA|3D"
+
+          Then install the correct driver:
+
+          **Intel (most common on older laptops):**
+            sudo pacman -S xf86-video-intel
+
+          **AMD / ATI (older cards):**
+            sudo pacman -S xf86-video-amdgpu   # for newer AMD
+            sudo pacman -S xf86-video-radeon   # for older ATI/AMD
+
+          **NVIDIA (if present):**
+            sudo pacman -S nvidia              # for proprietary driver
+            # or for older GPUs: sudo pacman -S nvidia-340xx (deprecated, try open-source)
+            # For open-source: sudo pacman -S xf86-video-nouveau
+
+          -----------------------------------------------------------------------
+          D. Enable and start the display manager
+          -----------------------------------------------------------------------
+
+          After driver installation:
+
+            sudo systemctl enable lightdm --now
+
+          If you get an error, reboot first:
+
+            sudo reboot
+
+          -----------------------------------------------------------------------
+          E. If the GUI still does not start, try the open-source driver fallback
+          -----------------------------------------------------------------------
+
+          Remove the proprietary driver and use the built-in modesetting driver:
+
+            sudo pacman -R xf86-video-intel   # (or the one you installed)
+            sudo pacman -S xf86-video-modesetting
+            sudo reboot
+
+          -----------------------------------------------------------------------
+          F. Alternative: use a lighter desktop or start X manually
+          -----------------------------------------------------------------------
+
+          You can also try starting X manually:
+
+            startx
+
+          If that works, you can use the system without a display manager.
+
+          ========================================================================
           Bonus: Run miner without GUI (headless mode)
-          -----------------------------------------------------------------------
+          ========================================================================
 
           If you don't need the desktop, you can start the miner in the background:
             start-miner-headless
@@ -295,7 +353,9 @@ jobs:
               - GUI: desktop icon "DuinoCoin Miner"
               - Headless (background): start-miner-headless
 
-            For full instructions, see the file on your Desktop:
+            If the GUI fails to start (black screen), boot into text mode
+            by adding '3' to the kernel command line in GRUB, then install
+            the appropriate GPU driver – see the file on your Desktop:
             HowTo_Write_Expand.txt  (popup will appear automatically)
 
             WARNING: Writing this image will OVERWRITE all data.
@@ -303,8 +363,6 @@ jobs:
           MOTD
 
           # ---------- GRUB INSTALL FOR UEFI (in chroot) ----------
-          # This will be run inside chroot, so we use the loop device directly.
-          # We only install UEFI version here; Legacy will be installed later from host.
           grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB --removable
           grub-mkconfig -o /boot/grub/grub.cfg
 
@@ -329,7 +387,6 @@ jobs:
 
       - name: Install GRUB for Legacy BIOS (from host)
         run: |
-          # Install GRUB into the MBR of the image (uses the BIOS boot partition)
           sudo grub-install --boot-directory=/mnt/arch/boot --target=i386-pc --recheck /dev/loop0
 
       - name: Cleanup and compress image
