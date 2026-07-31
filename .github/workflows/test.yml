@@ -66,11 +66,20 @@ jobs:
             exit 1
           fi
 
-      - name: Start QEMU with VNC (using pflash for UEFI)
+      - name: Prepare OVMF files
         run: |
           cd ./artifact
-          OVMF_CODE="/usr/share/OVMF/OVMF_CODE_4M.fd"
-          OVMF_VARS="/usr/share/OVMF/OVMF_VARS_4M.fd"
+          # Copy OVMF files từ system vào thư mục artifact để có quyền ghi
+          cp /usr/share/OVMF/OVMF_CODE_4M.fd ./ovmf_code.fd
+          cp /usr/share/OVMF/OVMF_VARS_4M.fd ./ovmf_vars.fd
+          chmod 644 ./ovmf_code.fd ./ovmf_vars.fd
+          echo "✅ OVMF files prepared"
+
+      - name: Start QEMU with VNC (using pflash)
+        run: |
+          cd ./artifact
+          OVMF_CODE="./ovmf_code.fd"
+          OVMF_VARS="./ovmf_vars.fd"
           
           if [ -f "$OVMF_CODE" ] && [ -f "$OVMF_VARS" ]; then
             echo "✅ Booting with UEFI using pflash"
