@@ -17,9 +17,9 @@ jobs:
           sudo apt update
           sudo apt install -y wget curl git dosfstools e2fsprogs parted xz-utils gdisk grub-pc
 
-      - name: Create image file and partitions (4GB - GPT with BIOS boot)
+      - name: Create image file and partitions (8GB - GPT with BIOS boot)
         run: |
-          dd if=/dev/zero of=arch-duco.img bs=1M count=4096
+          dd if=/dev/zero of=arch-duco.img bs=1M count=8192
           parted arch-duco.img mklabel gpt
           parted arch-duco.img mkpart primary fat32 1MiB 513MiB
           parted arch-duco.img set 1 esp on
@@ -140,7 +140,7 @@ jobs:
           ========================================================================
 
           BEFORE YOU START:
-          - This image (~4GB) contains Arch Linux + Xfce4 + DuinoCoin miner.
+          - This image (~8GB) contains Arch Linux + Xfce4 + DuinoCoin miner.
           - Supports BOTH UEFI and Legacy BIOS (works on 10-year-old machines).
           - Writing this image will OVERWRITE ALL DATA on the target disk.
           - BACKUP important data before proceeding.
@@ -200,7 +200,8 @@ jobs:
           STEP 5: Expand the root partition to use the full disk space
           -----------------------------------------------------------------------
 
-          After boot, the root partition is only ~3.5GB. Expand it:
+          After boot, the root partition is only ~7.5GB. If your disk is larger,
+          you can expand it to use all available space:
 
           Option A – GParted (GUI, already installed):
             sudo gparted
